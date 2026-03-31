@@ -26,7 +26,6 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./docker/monitoring/grafana:/var/lib/grafana
       - grafana_data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
