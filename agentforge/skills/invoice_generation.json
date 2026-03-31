@@ -1,0 +1,35 @@
+{
+  "name": "发票自动生成",
+  "version": "1.0.0",
+  "description": "订单完成后自动生成发票",
+  "trigger": {
+    "type": "event",
+    "event_type": "order_completed",
+    "conditions": []
+  },
+  "actions": [
+    {
+      "type": "http_request",
+      "params": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/invoices",
+        "body": {
+          "order_id": "{{order_id}}",
+          "customer_id": "{{customer_id}}",
+          "amount": "{{order_value}}"
+        }
+      }
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{customer_id}}",
+        "content": "您的发票已生成，请查收。",
+        "subject": "发票通知"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["invoice", "order"],
+  "author": "System"
+}

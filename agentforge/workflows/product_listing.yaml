@@ -1,0 +1,64 @@
+name: 产品上架流程
+version: "1.0.0"
+description: 新产品上架自动化流程
+trigger:
+  type: manual
+  conditions: []
+workflow:
+  - name: 生成产品描述
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "为以下产品生成吸引人的描述：{{product_info}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 生成 SEO 关键词
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "为产品生成 SEO 关键词：{{product_info}}"
+    timeout: 60
+    retry: 2
+    on_error: continue
+  - name: 创建产品列表
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/products"
+      body:
+        name: "{{product_name}}"
+        description: "{{ai_result}}"
+        price: "{{price}}"
+        seo_keywords: "{{ai_result_2}}"
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 同步到多平台
+    type: parallel
+    steps:
+      - name: 同步到网站
+        type: action
+        action_type: http_request
+        params:
+          method: POST
+          url: "http://localhost:8000/api/products/sync/website"
+      - name: 同步到社交媒体
+        type: action
+        action_type: http_request
+        params:
+          method: POST
+          url: "http://localhost:8000/api/products/sync/social"
+    timeout: 60
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - product
+  - listing
+  - automation
+author: System

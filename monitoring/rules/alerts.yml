@@ -1,0 +1,150 @@
+# ===========================================
+# Prometheus 告警规则配置
+# 定义系统监控告警条件
+# ===========================================
+
+groups:
+  # AgentForge API 告警规则
+  - name: agentforge-alerts
+    rules:
+      # API 服务不可用
+      - alert: AgentForgeAPIDown
+        expr: up{job="agentforge-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AgentForge API 服务不可用"
+          description: "API 服务 {{ $labels.instance }} 已经宕机超过 1 分钟"
+
+      # API 高错误率
+      - alert: AgentForgeAPIHighErrorRate
+        expr: sum(rate(http_requests_total{job="agentforge-api",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="agentforge-api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AgentForge API 错误率过高"
+          description: "API 错误率 {{ $value | humanizePercentage }} 超过 5%"
+
+      # API 高延迟
+      - alert: AgentForgeAPIHighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="agentforge-api"}[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AgentForge API 延迟过高"
+          description: "P95 延迟 {{ $value | humanizeDuration }} 超过 2 秒"
+
+      # 内存使用过高
+      - alert: AgentForgeAPIHighMemory
+        expr: process_resident_memory_bytes{job="agentforge-api"} / 1024 / 1024 / 1024 > 1.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AgentForge API 内存使用过高"
+          description: "API 内存使用 {{ $value | humanize }}GB 超过 1.5GB"
+
+  # PostgreSQL 数据库告警
+  - name: postgres-alerts
+    rules:
+      # 数据库连接数过多
+      - alert: PostgresHighConnections
+        expr: pg_stat_activity_count > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL 连接数过高"
+          description: "PostgreSQL 连接数 {{ $value }} 超过 100"
+
+      # 数据库复制延迟
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL 复制延迟过高"
+          description: "PostgreSQL 复制延迟 {{ $value }} 秒超过 30 秒"
+
+      # 数据库磁盘空间不足
+      - alert: PostgresLowDiskSpace
+        expr: pg_database_size / 1024 / 1024 / 1024 > 50
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL 数据库空间不足"
+          description: "PostgreSQL 数据库大小 {{ $value | humanize }}GB 超过 50GB"
+
+  # Redis 缓存告警
+  - name: redis-alerts
+    rules:
+      # Redis 内存使用过高
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / 1024 / 1024 / 1024 > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 内存使用过高"
+          description: "Redis 内存使用 {{ $value | humanize }}GB 超过 200MB"
+
+      # Redis 连接失败
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 服务不可用"
+          description: "Redis 服务已经宕机超过 1 分钟"
+
+  # Nginx 告警
+  - name: nginx-alerts
+    rules:
+      # Nginx 高错误率
+      - alert: NginxHighErrorRate
+        expr: sum(rate(nginx_http_requests_total{status=~"5.."}[5m])) / sum(rate(nginx_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nginx 错误率过高"
+          description: "Nginx 错误率 {{ $value | humanizePercentage }} 超过 5%"
+
+  # 系统资源告警
+  - name: system-alerts
+    rules:
+      # CPU 使用过高
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 使用率过高"
+          description: "实例 {{ $labels.instance }} CPU 使用率 {{ $value }}% 超过 80%"
+
+      # 内存使用过高
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "内存使用率过高"
+          description: "实例 {{ $labels.instance }} 内存使用率 {{ $value }}% 超过 85%"
+
+      # 磁盘使用过高
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "磁盘使用率过高"
+          description: "实例 {{ $labels.instance }} 磁盘使用率 {{ $value }}% 超过 85%"

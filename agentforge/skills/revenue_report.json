@@ -1,0 +1,40 @@
+{
+  "name": "收入统计报告",
+  "version": "1.0.0",
+  "description": "生成每日/周/月收入统计报告",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 20 * * *"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "revenue",
+        "params": {
+          "period": "daily",
+          "date": "{{today}}"
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "根据以下收入数据生成统计报告：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "user",
+        "subject": "收入统计报告 - {{today}}",
+        "content": "{{ai_result}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["revenue", "report"],
+  "author": "System"
+}

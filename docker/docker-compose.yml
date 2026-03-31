@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  agentforge-core:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agentforge
+    container_name: agentforge-core
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ./data:/app/data
+      - ./.trae:/app/.trae
+      - ${OBSIDIAN_VAULT_PATH:-./vault}:/vault:ro
+    environment:
+      - LLM_PROVIDER=qianfan
+      - QIANFAN_API_KEY=${QIANFAN_API_KEY}
+      - LLM_MODEL=glm-5
+      - LLM_FALLBACK_MODELS=deepseek-v3.2,kimi-k2.5,minimax-m2.5
+      - QDRANT_URL=http://qdrant:6333
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-agentforge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-agentforge}
+      - REDIS_URL=redis://redis:6379
+      - TZ=${TZ:-Asia/Shanghai}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - agentforge-network
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: agentforge-n8n
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    volumes:
+      - ./workflows:/home/node/.n8n
+      - ./data/n8n:/data
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/webhook/}
+      - EXECUTIONS_MODE=regular
+      - GENERIC_TIMEZONE=${TZ:-Asia/Shanghai}
+      - N8N_LOG_LEVEL=${LOG_LEVEL:-info}
+    restart: unless-stopped
+    networks:
+      - agentforge-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentforge-postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-agentforge}
+      - POSTGRES_USER=${POSTGRES_USER:-agentforge}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - TZ=${TZ:-Asia/Shanghai}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentforge} -d ${POSTGRES_DB:-agentforge}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agentforge-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentforge-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - agentforge-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agentforge-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - agentforge-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  qdrant-data:
+    driver: local
+
+networks:
+  agentforge-network:
+    driver: bridge

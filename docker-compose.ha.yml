@@ -1,0 +1,377 @@
+version: '3.8'
+
+services:
+  # Load Balancer
+  nginx-lb:
+    image: nginx:alpine
+    container_name: agentforge-lb
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - ./docker/nginx/load-balancer.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - backend-1
+      - backend-2
+      - frontend-1
+      - frontend-2
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Backend Instances
+  backend-1:
+    image: agentforge-backend:latest
+    container_name: agentforge-backend-1
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - INSTANCE_ID=backend-1
+      - DATABASE_URL=postgresql://agentforge:password@postgres:5432/agentforge
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  backend-2:
+    image: agentforge-backend:latest
+    container_name: agentforge-backend-2
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - INSTANCE_ID=backend-2
+      - DATABASE_URL=postgresql://agentforge:password@postgres:5432/agentforge
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  backend-3:
+    image: agentforge-backend:latest
+    container_name: agentforge-backend-3
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - INSTANCE_ID=backend-3
+      - DATABASE_URL=postgresql://agentforge:password@postgres:5432/agentforge
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agentforge-network
+    profiles:
+      - high-availability
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Frontend Instances
+  frontend-1:
+    image: agentforge-frontend:latest
+    container_name: agentforge-frontend-1
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=/api
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  frontend-2:
+    image: agentforge-frontend:latest
+    container_name: agentforge-frontend-2
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=/api
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # N8N Instances
+  n8n-1:
+    image: n8nio/n8n:latest
+    container_name: agentforge-n8n-1
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://localhost/n8n/
+      - GENERIC_TIMEZONE=Asia/Shanghai
+    volumes:
+      - n8n-data-1:/home/node/.n8n
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5678/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  n8n-2:
+    image: n8nio/n8n:latest
+    container_name: agentforge-n8n-2
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://localhost/n8n/
+      - GENERIC_TIMEZONE=Asia/Shanghai
+    volumes:
+      - n8n-data-2:/home/node/.n8n
+    networks:
+      - agentforge-network
+    profiles:
+      - high-availability
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Database (Primary)
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentforge-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=agentforge
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=agentforge
+      - POSTGRES_MAX_CONNECTIONS=200
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentforge -d agentforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # Redis Cluster
+  redis:
+    image: redis:7-alpine
+    container_name: agentforge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Qdrant Vector DB
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agentforge-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - agentforge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agentforge-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - agentforge-network
+    ports:
+      - "9090:9090"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agentforge-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - agentforge-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+volumes:
+  postgres-data:
+  redis-data:
+  qdrant-data:
+  n8n-data-1:
+  n8n-data-2:
+  prometheus-data:
+  grafana-data:
+  nginx-logs:
+
+networks:
+  agentforge-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

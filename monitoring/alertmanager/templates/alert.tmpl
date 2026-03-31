@@ -1,0 +1,80 @@
+{{ define "email.default.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .header { background-color: #f0f0f0; padding: 20px; border-radius: 5px 5px 0 0; }
+    .content { padding: 20px; background-color: #ffffff; border: 1px solid #e0e0e0; }
+    .alert-item { margin: 15px 0; padding: 10px; border-left: 4px solid #{{ if eq .Status "firing" }}ff4444{{ else }}44ff44{{ end }}; background-color: #f9f9f9; }
+    .severity-critical { color: #ff4444; font-weight: bold; }
+    .severity-warning { color: #ffaa00; font-weight: bold; }
+    .footer { text-align: center; padding: 10px; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>🔔 AgentForge 告警通知</h2>
+    </div>
+    <div class="content">
+      <p><strong>告警状态:</strong> {{ .Status | upper }}</p>
+      <p><strong>告警数量:</strong> {{ len .Alerts }}</p>
+      
+      {{ range .Alerts }}
+      <div class="alert-item">
+        <h3>{{ .Annotations.summary }}</h3>
+        <p><strong>级别:</strong> 
+          <span class="severity-{{ .Labels.severity }}">
+            {{ .Labels.severity | upper }}
+          </span>
+        </p>
+        <p><strong>服务:</strong> {{ .Labels.service }}</p>
+        <p><strong>实例:</strong> {{ .Labels.instance }}</p>
+        <p><strong>描述:</strong> {{ .Annotations.description }}</p>
+        <p><strong>开始时间:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+        {{ if .Annotations.runbook_url }}
+        <p><strong>处理手册:</strong> <a href="{{ .Annotations.runbook_url }}">查看</a></p>
+        {{ end }}
+      </div>
+      {{ end }}
+      
+      {{ if .CommonAnnotations.runbook_url }}
+      <p><strong>通用处理手册:</strong> <a href="{{ .CommonAnnotations.runbook_url }}">查看</a></p>
+      {{ end }}
+    </div>
+    <div class="footer">
+      <p>此邮件由 AgentForge 监控系统自动发送</p>
+      <p>请勿回复此邮件</p>
+    </div>
+  </div>
+</body>
+</html>
+{{ end }}
+
+{{ define "email.critical.html" }}
+{{ template "email.default.html" . }}
+{{ end }}
+
+{{ define "telegram.message" }}
+🔔 *AgentForge 告警通知*
+
+*状态:* {{ .Status | upper }}
+*告警数量:* {{ len .Alerts }}
+
+{{ range .Alerts }}
+────────────────
+*{{ .Annotations.summary }}*
+
+*级别:* {{ .Labels.severity | upper }}
+*服务:* {{ .Labels.service }}
+*实例:* {{ .Labels.instance }}
+*描述:* {{ .Annotations.description }}
+*开始时间:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+{{ end }}
+
+────────────────
+_AgentForge 监控系统_
+{{ end }}

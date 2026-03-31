@@ -1,0 +1,47 @@
+name: 新客户欢迎流程
+version: "1.0.0"
+description: 新注册客户的欢迎流程
+trigger:
+  type: event
+  event_type: new_customer
+  conditions: []
+workflow:
+  - name: 发送欢迎邮件
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_email}}"
+      subject: "欢迎加入！"
+      content: "感谢您注册我们的服务！我们很荣幸为您服务。"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 创建入门任务
+    type: action
+    action_type: create_task
+    params:
+      title: "新客户入门指导 - {{customer_name}}"
+      description: "联系新客户，提供入门指导"
+      priority: high
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 发送使用指南
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/email/send"
+      body:
+        to: "{{customer_email}}"
+        template: "getting_started_guide"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - customer
+  - onboarding
+  - welcome
+author: System

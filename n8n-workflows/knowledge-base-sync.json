@@ -1,0 +1,400 @@
+{
+  "name": "Knowledge Base Sync Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/knowledge/sources",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$credentials.apiToken}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-sources",
+      "name": "Get Knowledge Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter sources that need sync\nconst sources = $input.all();\nconst now = new Date();\n\nconst needsSync = sources.filter(source => {\n  const lastSync = new Date(source.json.last_sync);\n  const syncInterval = source.json.sync_interval_hours || 6;\n  const hoursSinceSync = (now - lastSync) / (1000 * 60 * 60);\n  \n  return hoursSinceSync >= syncInterval && source.json.enabled;\n});\n\nreturn needsSync.map(item => ({ json: item.json }));"
+      },
+      "id": "filter-sync-needed",
+      "name": "Filter Sources Needing Sync",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "notion-condition",
+              "leftValue": "={{$json.source_type}}",
+              "rightValue": "notion",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "id": "check-source-type",
+      "name": "Check Source Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/knowledge/sync/notion",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source_id",
+              "value": "={{$json.id}}"
+            },
+            {
+              "name": "database_id",
+              "value": "={{$json.config.database_id}}"
+            },
+            {
+              "name": "sync_mode",
+              "value": "incremental"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sync-notion",
+      "name": "Sync from Notion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/knowledge/sync/obsidian",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source_id",
+              "value": "={{$json.id}}"
+            },
+            {
+              "name": "vault_path",
+              "value": "={{$json.config.vault_path}}"
+            },
+            {
+              "name": "sync_mode",
+              "value": "incremental"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sync-obsidian",
+      "name": "Sync from Obsidian",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process synced documents\nconst syncResult = $input.item.json;\nconst documents = syncResult.documents || [];\n\nconst processed = documents.map(doc => ({\n  id: doc.id,\n  title: doc.title,\n  content: doc.content,\n  source: doc.source,\n  tags: doc.tags || [],\n  metadata: {\n    synced_at: new Date().toISOString(),\n    source_type: syncResult.source_type,\n    word_count: doc.content.split(/\\s+/).length\n  }\n}));\n\nreturn {\n  json: {\n    source_id: syncResult.source_id,\n    documents_processed: processed.length,\n    documents: processed\n  }\n};"
+      },
+      "id": "process-documents",
+      "name": "Process Documents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/knowledge/embed",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "documents",
+              "value": "={{JSON.stringify($json.documents)}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "embed-documents",
+      "name": "Generate Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/knowledge/store",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "embeddings",
+              "value": "={{JSON.stringify($json.embeddings)}}"
+            },
+            {
+              "name": "documents",
+              "value": "={{JSON.stringify($json.documents)}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "store-vectors",
+      "name": "Store in Qdrant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/knowledge/sources/{{$json.source_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "last_sync",
+              "value": "={{new Date().toISOString()}}"
+            },
+            {
+              "name": "documents_count",
+              "value": "={{$json.documents_processed}}"
+            },
+            {
+              "name": "sync_status",
+              "value": "completed"
+            }
+          ]
+        },
+        "options": {
+          "method": "PUT"
+        }
+      },
+      "id": "update-source",
+      "name": "Update Source Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "info"
+            },
+            {
+              "name": "title",
+              "value": "Knowledge Sync Complete"
+            },
+            {
+              "name": "message",
+              "value": "=已同步 {{$json.documents_processed}} 个文档到知识库"
+            },
+            {
+              "name": "priority",
+              "value": "low"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-complete",
+      "name": "Notify Completion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2050, 300]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Sources": {
+      "main": [
+        [
+          {
+            "node": "Filter Sources Needing Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Sources Needing Sync": {
+      "main": [
+        [
+          {
+            "node": "Check Source Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Source Type": {
+      "main": [
+        [
+          {
+            "node": "Sync from Notion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync from Obsidian",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync from Notion": {
+      "main": [
+        [
+          {
+            "node": "Process Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync from Obsidian": {
+      "main": [
+        [
+          {
+            "node": "Process Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Documents": {
+      "main": [
+        [
+          {
+            "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Store in Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Update Source Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Source Status": {
+      "main": [
+        [
+          {
+            "node": "Notify Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "3",
+      "name": "Knowledge Base"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

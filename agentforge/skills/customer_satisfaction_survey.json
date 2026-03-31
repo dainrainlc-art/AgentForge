@@ -1,0 +1,40 @@
+{
+  "name": "客户满意度调查",
+  "version": "1.0.0",
+  "description": "订单完成后自动发送满意度调查",
+  "trigger": {
+    "type": "event",
+    "event_type": "order_completed",
+    "conditions": []
+  },
+  "actions": [
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "生成一条友好的客户满意度调查请求"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{customer_id}}",
+        "subject": "满意度调查",
+        "content": "{{ai_result}}"
+      }
+    },
+    {
+      "type": "create_task",
+      "params": {
+        "title": "跟进客户满意度 #{{order_id}}",
+        "description": "已发送调查请求，等待客户回复",
+        "priority": "low",
+        "due_date": "+7 days"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["survey", "customer"],
+  "author": "System"
+}

@@ -1,0 +1,69 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "mcp-server-filesystem",
+      "args": ["/home/dainrain4/trae_projects/AgentForge"],
+      "description": "文件系统操作，支持读写项目文件",
+      "enabled": true,
+      "priority": "high"
+    },
+    "github": {
+      "command": "mcp-server-github",
+      "args": [],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub仓库管理，支持Issues、PR、代码操作",
+      "enabled": true,
+      "priority": "high"
+    },
+    "postgres": {
+      "command": "mcp-server-postgres",
+      "args": [],
+      "env": {
+        "DATABASE_URL": "postgresql://agentforge:${POSTGRES_PASSWORD}@localhost:5432/agentforge"
+      },
+      "description": "PostgreSQL数据库操作",
+      "enabled": true,
+      "priority": "high"
+    },
+    "redis": {
+      "command": "mcp-server-redis",
+      "args": [],
+      "env": {
+        "REDIS_URL": "redis://localhost:6379"
+      },
+      "description": "Redis缓存操作",
+      "enabled": true,
+      "priority": "medium"
+    },
+    "web-search": {
+      "command": "mcp-server-web-search",
+      "args": [],
+      "description": "网络搜索能力，支持信息检索",
+      "enabled": true,
+      "priority": "medium"
+    }
+  },
+  "mcpConfig": {
+    "version": "1.0",
+    "description": "AgentForge MCP Servers配置",
+    "globalTimeout": 30000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMultiplier": 2,
+      "initialDelay": 1000
+    }
+  },
+  "agentMcpMapping": {
+    "architect": ["filesystem", "github"],
+    "ai_engineer": ["filesystem", "github", "web-search"],
+    "software_engineer": ["filesystem", "github", "postgres", "redis"],
+    "frontend_engineer": ["filesystem", "github"],
+    "security_engineer": ["filesystem", "github", "postgres"],
+    "network_engineer": ["filesystem", "github", "web-search"],
+    "psychologist": ["filesystem", "web-search"],
+    "anthropologist": ["filesystem", "web-search"],
+    "test_engineer": ["filesystem", "github", "postgres"]
+  }
+}

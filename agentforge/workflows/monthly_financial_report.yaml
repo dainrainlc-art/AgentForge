@@ -1,0 +1,56 @@
+name: 月度财务报告
+version: "1.0.0"
+description: 生成月度财务报告
+trigger:
+  type: timer
+  cron: "0 8 1 * *"
+  conditions: []
+workflow:
+  - name: 查询收入数据
+    type: action
+    action_type: query_data
+    params:
+      type: revenue
+      params:
+        period: monthly
+        month: "{{last_month}}"
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 查询支出数据
+    type: action
+    action_type: query_data
+    params:
+      type: expenses
+      params:
+        period: monthly
+        month: "{{last_month}}"
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 生成财务报告
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "根据以下数据生成月度财务报告：收入={{data}}, 支出={{data_2}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 发送财务报告
+    type: action
+    action_type: send_message
+    params:
+      to: "user"
+      subject: "月度财务报告 - {{last_month}}"
+      content: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - finance
+  - report
+  - monthly
+author: System

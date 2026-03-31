@@ -1,0 +1,54 @@
+name: 员工排班管理
+version: "1.0.0"
+description: 自动生成和管理员工排班
+trigger:
+  type: timer
+  cron: "0 16 * * 5"
+  conditions: []
+workflow:
+  - name: 查询下周需求
+    type: action
+    action_type: query_data
+    params:
+      type: schedule_requirements
+      params:
+        week: "{{next_week}}"
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 查询员工可用性
+    type: action
+    action_type: query_data
+    params:
+      type: employees
+      params:
+        availability: "{{next_week}}"
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 生成排班表
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "根据需求和员工可用性生成排班表：需求={{data}}, 员工={{data_2}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 发布排班表
+    type: action
+    action_type: send_message
+    params:
+      to: "all_employees"
+      subject: "下周排班表"
+      content: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - hr
+  - schedule
+  - automation
+author: System

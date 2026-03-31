@@ -1,0 +1,55 @@
+name: 客户流失预警
+version: "1.0.0"
+description: 识别有流失风险的客户并预警
+trigger:
+  type: timer
+  cron: "0 11 * * *"
+  conditions: []
+workflow:
+  - name: 查询活跃客户
+    type: action
+    action_type: query_data
+    params:
+      type: customers
+      params:
+        last_order_days_ago: 30
+        status: active
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 分析流失风险
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "分析以下客户数据，识别有流失风险的客户：{{data}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 创建挽回任务
+    type: action
+    action_type: create_task
+    params:
+      title: "客户流失预警 - 需要挽回"
+      description: "{{ai_result}}"
+      priority: high
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 发送挽回优惠
+    type: action
+    action_type: send_message
+    params:
+      to: "{{at_risk_customers}}"
+      subject: "特别优惠 - 我们想念您"
+      content: "我们注意到您很久没下单了，这是为您准备的特别优惠..."
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - customer
+  - retention
+  - warning
+author: System

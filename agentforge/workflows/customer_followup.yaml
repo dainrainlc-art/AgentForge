@@ -1,0 +1,64 @@
+name: 客户跟进工作流
+version: "1.0.0"
+description: 自动跟进未回复的客户
+trigger:
+  type: timer
+  cron: "0 10 * * 1"
+  conditions: []
+workflow:
+  - name: 查询未回复客户
+    type: action
+    action_type: query_data
+    params:
+      type: customers
+      params:
+        last_message_days_ago: 7
+        status: active
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 检查是否有客户
+    type: condition
+    conditions:
+      - field: data
+        operator: exists
+        value: true
+    timeout: 10
+    retry: 0
+    on_error: continue
+  - name: 生成跟进消息
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "为以下客户生成友好的跟进消息：{{data}}"
+    timeout: 60
+    retry: 2
+    on_error: continue
+  - name: 发送跟进邮件
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_email}}"
+      subject: "跟进询问"
+      content: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 创建跟进任务
+    type: action
+    action_type: create_task
+    params:
+      title: "跟进客户 {{customer_name}}"
+      description: "已发送跟进邮件，等待回复"
+      priority: medium
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - customer
+  - followup
+  - email
+author: System

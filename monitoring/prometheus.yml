@@ -1,0 +1,97 @@
+# ===========================================
+# Prometheus 监控配置
+# 用于采集 AgentForge 系统指标
+# ===========================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'agentforge-monitor'
+    environment: 'production'
+
+# 告警管理器配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# 规则文件
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# 抓取配置
+scrape_configs:
+  # Prometheus 自监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          instance: 'prometheus'
+
+  # AgentForge API 服务
+  - job_name: 'agentforge-api'
+    static_configs:
+      - targets: ['agentforge-api:8000']
+        labels:
+          service: 'api'
+          environment: 'production'
+    metrics_path: '/metrics'
+
+  # PostgreSQL 数据库
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
+
+  # Redis 缓存
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # Nginx 服务
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx'
+
+  # N8N 工作流引擎
+  - job_name: 'n8n'
+    static_configs:
+      - targets: ['n8n:5678']
+        labels:
+          service: 'n8n'
+    metrics_path: '/metrics'
+
+  # Qdrant 向量数据库
+  - job_name: 'qdrant'
+    static_configs:
+      - targets: ['qdrant:6333']
+        labels:
+          service: 'qdrant'
+    metrics_path: '/metrics'
+
+  # Node Exporter（系统指标）
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+
+  # 自定义业务指标（可选）
+  - job_name: 'business-metrics'
+    static_configs:
+      - targets: ['agentforge-api:8000']
+        labels:
+          service: 'business'
+    metrics_path: '/api/metrics/business'

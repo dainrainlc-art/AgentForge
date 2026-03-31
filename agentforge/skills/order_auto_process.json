@@ -1,0 +1,38 @@
+{
+  "name": "订单自动处理",
+  "version": "1.0.0",
+  "description": "自动处理新订单",
+  "trigger": {
+    "type": "event",
+    "event_type": "new_order",
+    "conditions": []
+  },
+  "actions": [
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "为新订单生成欢迎消息，订单金额：{{order_value}}，客户需求：{{customer_requirement}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{customer_id}}",
+        "content": "{{ai_result}}"
+      }
+    },
+    {
+      "type": "create_task",
+      "params": {
+        "title": "处理订单 #{{order_id}}",
+        "description": "客户需求：{{customer_requirement}}",
+        "priority": "high"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["order", "fiverr"],
+  "author": "System"
+}

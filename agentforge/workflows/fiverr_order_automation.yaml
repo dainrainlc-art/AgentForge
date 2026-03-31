@@ -1,0 +1,44 @@
+name: Fiverr 订单自动化
+version: "1.0.0"
+description: 自动处理 Fiverr 新订单流程
+trigger:
+  type: event
+  event_type: new_order
+  conditions: []
+workflow:
+  - name: 发送欢迎消息
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_id}}"
+      subject: "订单确认"
+      content: "感谢您的订单！我将尽快开始处理。"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 生成工作计划
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "为以下订单生成详细的工作计划：订单 ID={{order_id}}, 需求={{requirements}}"
+    timeout: 60
+    retry: 2
+    on_error: continue
+  - name: 创建任务
+    type: action
+    action_type: create_task
+    params:
+      title: "完成订单 #{{order_id}}"
+      description: "{{ai_result}}"
+      priority: high
+    timeout: 30
+    retry: 3
+    on_error: abort
+variables: {}
+enabled: true
+tags:
+  - fiverr
+  - order
+  - automation
+author: System

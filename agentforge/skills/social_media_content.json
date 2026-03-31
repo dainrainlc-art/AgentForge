@@ -1,0 +1,33 @@
+{
+  "name": "社交媒体内容生成",
+  "version": "1.0.0",
+  "description": "自动生成社交媒体内容",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 9 * * *"
+  },
+  "actions": [
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "生成一条关于{{topic}}的社交媒体帖子，包含吸引人的标题和内容"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "http_request",
+      "params": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/social-media/posts",
+        "body": {
+          "content": "{{ai_result}}",
+          "platform": "twitter"
+        }
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["social-media", "content"],
+  "author": "System"
+}

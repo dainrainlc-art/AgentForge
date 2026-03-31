@@ -1,0 +1,31 @@
+{
+  "name": "订单完成通知",
+  "version": "1.0.0",
+  "description": "订单完成后通知客户",
+  "trigger": {
+    "type": "event",
+    "event_type": "order_completed",
+    "conditions": []
+  },
+  "actions": [
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "订单已完成，生成感谢消息给客户"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{customer_id}}",
+        "content": "{{ai_result}}",
+        "subject": "订单已完成"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["order", "notification"],
+  "author": "System"
+}

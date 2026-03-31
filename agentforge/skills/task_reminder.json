@@ -1,0 +1,40 @@
+{
+  "name": "待办事项提醒",
+  "version": "1.0.0",
+  "description": "定时提醒待办事项",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 8 * * *"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "tasks",
+        "params": {
+          "status": "pending",
+          "due_date": "{{today}}"
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "根据以下待办事项生成提醒消息：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "user",
+        "content": "{{ai_result}}",
+        "subject": "今日待办提醒"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["task", "reminder"],
+  "author": "System"
+}

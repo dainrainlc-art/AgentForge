@@ -1,0 +1,37 @@
+{
+  "name": "营销活动策划",
+  "version": "1.0.0",
+  "description": "根据节日和热点自动生成营销活动策划",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 10 * * *"
+  },
+  "actions": [
+    {
+      "type": "http_request",
+      "params": {
+        "method": "GET",
+        "url": "https://holidays-api.com/upcoming"
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "根据即将到来的节日和热点，生成营销活动策划方案：{{http_response}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "create_task",
+      "params": {
+        "title": "执行营销活动策划",
+        "description": "{{ai_result}}",
+        "priority": "medium"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["marketing", "campaign"],
+  "author": "System"
+}

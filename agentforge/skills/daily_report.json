@@ -1,0 +1,40 @@
+{
+  "name": "日报生成",
+  "version": "1.0.0",
+  "description": "自动生成工作日报",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 18 * * *"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "tasks",
+        "params": {
+          "date": "{{today}}",
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "根据以下完成的任务生成工作日报：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "manager",
+        "subject": "工作日报 - {{today}}",
+        "content": "{{ai_result}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["report", "daily"],
+  "author": "System"
+}

@@ -1,0 +1,66 @@
+name: 订单完成工作流
+version: "1.0.0"
+description: 订单完成后自动通知客户并生成发票
+trigger:
+  type: event
+  event_type: order_completed
+  conditions: []
+workflow:
+  - name: 发送完成通知
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_id}}"
+      subject: "订单已完成"
+      content: "您的订单已完成！感谢您的信任，如有任何问题请随时联系我。"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 生成发票
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/invoices"
+      body:
+        order_id: "{{order_id}}"
+        customer_id: "{{customer_id}}"
+        amount: "{{order_value}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 发送发票
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_id}}"
+      subject: "发票通知"
+      content: "您的发票已生成，请查收附件。"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 请求评价
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "生成一条礼貌的评价请求消息"
+    timeout: 60
+    retry: 2
+    on_error: continue
+  - name: 发送评价请求
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_id}}"
+      content: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - order
+  - completion
+  - invoice
+author: System

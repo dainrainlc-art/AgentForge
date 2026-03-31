@@ -1,0 +1,395 @@
+"""
+AgentForge Cache Manager Unit Tests
+"""
+import pytest
+import asyncio
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch, MagicMock
+import json
+
+from agentforge.data.cache_manager import (
+    CacheManager,
+    CacheLevel,
+    CacheEntry,
+    CacheStats,
+)
+
+
+class TestCacheEntry:
+    def test_cache_entry_creation(self):
+        entry = CacheEntry(
+            key="test_key",
+            value={"data": "test_value"},
+            ttl=60,
+            level=CacheLevel.LOCAL
+        )
+        assert entry.key == "test_key"
+        assert entry.value == {"data": "test_value"}
+        assert entry.ttl == 60
+        assert entry.level == CacheLevel.LOCAL
+        assert entry.created_at is not None
+
+    def test_cache_entry_expiration(self):
+        entry = CacheEntry(
+            key="test_key",
+            value="test_value",
+            ttl=1,
+            level=CacheLevel.LOCAL
+        )
+        assert not entry.is_expired()
+        
+        entry.created_at = datetime.now() - timedelta(seconds=2)
+        assert entry.is_expired()
+
+    def test_cache_entry_no_expiration(self):
+        entry = CacheEntry(
+            key="test_key",
+            value="test_value",
+            ttl=0,
+            level=CacheLevel.LOCAL
+        )
+        assert not entry.is_expired()
+
+
+class TestCacheStats:
+    def test_cache_stats_creation(self):
+        stats = CacheStats(
+            hits=100,
+            misses=10,
+            evictions=5,
+            size=50
+        )
+        assert stats.hits == 100
+        assert stats.misses == 10
+        assert stats.evictions == 5
+        assert stats.size == 50
+
+    def test_hit_rate_calculation(self):
+        stats = CacheStats(hits=90, misses=10, evictions=0, size=0)
+        assert stats.hit_rate == 0.9
+
+    def test_hit_rate_zero_requests(self):
+        stats = CacheStats(hits=0, misses=0, evictions=0, size=0)
+        assert stats.hit_rate == 0.0
+
+
+class TestCacheManager:
+    @pytest.fixture
+    def cache(self):
+        return CacheManager()
+
+    def test_cache_initialization(self, cache):
+        assert cache._local_cache == {}
+        assert cache._stats.hits == 0
+        assert cache._stats.misses == 0
+
+    @pytest.mark.asyncio
+    async def test_set_and_get(self, cache):
+        await cache.set("test_key", {"data": "test_value"}, ttl=60)
+        result = await cache.get("test_key")
+        assert result == {"data": "test_value"}
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_key(self, cache):
+        result = await cache.get("nonexistent_key")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_expired_key(self, cache):
+        await cache.set("expiring_key", "value", ttl=1)
+        
+        entry = cache._local_cache["expiring_key"]
+        entry.created_at = datetime.now() - timedelta(seconds=2)
+        
+        result = await cache.get("expiring_key")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_delete(self, cache):
+        await cache.set("delete_key", "value", ttl=60)
+        result = await cache.delete("delete_key")
+        assert result is True
+        
+        result = await cache.get("delete_key")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent(self, cache):
+        result = await cache.delete("nonexistent_key")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_clear(self, cache):
+        await cache.set("key1", "value1", ttl=60)
+        await cache.set("key2", "value2", ttl=60)
+        
+        await cache.clear()
+        
+        assert len(cache._local_cache) == 0
+
+    @pytest.mark.asyncio
+    async def test_exists(self, cache):
+        await cache.set("exists_key", "value", ttl=60)
+        
+        assert await cache.exists("exists_key") is True
+        assert await cache.exists("nonexistent_key") is False
+
+    @pytest.mark.asyncio
+    async def test_get_or_set_existing(self, cache):
+        await cache.set("compute_key", "existing_value", ttl=60)
+        
+        async def factory():
+            return "computed_value"
+        
+        result = await cache.get_or_set("compute_key", factory, ttl=60)
+        assert result == "existing_value"
+
+    @pytest.mark.asyncio
+    async def test_get_or_set_compute(self, cache):
+        call_count = 0
+        
+        async def factory():
+            nonlocal call_count
+            call_count += 1
+            return "computed_value"
+        
+        result = await cache.get_or_set("new_key", factory, ttl=60)
+        assert result == "computed_value"
+        assert call_count == 1
+        
+        result2 = await cache.get_or_set("new_key", factory, ttl=60)
+        assert result2 == "computed_value"
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_stats_tracking(self, cache):
+        await cache.set("stats_key", "value", ttl=60)
+        
+        await cache.get("stats_key")
+        assert cache._stats.hits == 1
+        
+        await cache.get("nonexistent_key")
+        assert cache._stats.misses == 1
+
+    def test_get_stats(self, cache):
+        cache._stats.hits = 50
+        cache._stats.misses = 10
+        
+        stats = cache.get_stats()
+        assert stats["hits"] == 50
+        assert stats["misses"] == 10
+        assert stats["hit_rate"] == 50 / 60
+
+    @pytest.mark.asyncio
+    async def test_set_with_different_ttls(self, cache):
+        await cache.set("short_ttl", "value1", ttl=1)
+        await cache.set("long_ttl", "value2", ttl=3600)
+        
+        assert await cache.get("short_ttl") == "value1"
+        assert await cache.get("long_ttl") == "value2"
+
+    @pytest.mark.asyncio
+    async def test_overwrite_existing_key(self, cache):
+        await cache.set("overwrite_key", "value1", ttl=60)
+        await cache.set("overwrite_key", "value2", ttl=60)
+        
+        result = await cache.get("overwrite_key")
+        assert result == "value2"
+
+    @pytest.mark.asyncio
+    async def test_complex_value_types(self, cache):
+        await cache.set("dict_value", {"nested": {"key": "value"}}, ttl=60)
+        await cache.set("list_value", [1, 2, 3, 4], ttl=60)
+        await cache.set("string_value", "simple string", ttl=60)
+        await cache.set("int_value", 42, ttl=60)
+        
+        assert await cache.get("dict_value") == {"nested": {"key": "value"}}
+        assert await cache.get("list_value") == [1, 2, 3, 4]
+        assert await cache.get("string_value") == "simple string"
+        assert await cache.get("int_value") == 42
+
+    @pytest.mark.asyncio
+    async def test_delete_pattern(self, cache):
+        await cache.set("user:1", "value1", ttl=60)
+        await cache.set("user:2", "value2", ttl=60)
+        await cache.set("order:1", "order_value", ttl=60)
+        
+        deleted = await cache.delete_pattern("user:*")
+        assert deleted >= 2
+        
+        assert await cache.get("user:1") is None
+        assert await cache.get("user:2") is None
+        assert await cache.get("order:1") == "order_value"
+
+    @pytest.mark.asyncio
+    async def test_increment(self, cache):
+        await cache.set("counter", 0, ttl=60)
+        
+        result = await cache.increment("counter")
+        assert result == 1
+        
+        result = await cache.increment("counter", 5)
+        assert result == 6
+
+    @pytest.mark.asyncio
+    async def test_increment_nonexistent(self, cache):
+        result = await cache.increment("new_counter")
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_decrement(self, cache):
+        await cache.set("counter", 10, ttl=60)
+        
+        result = await cache.decrement("counter")
+        assert result == 9
+        
+        result = await cache.decrement("counter", 5)
+        assert result == 4
+
+    @pytest.mark.asyncio
+    async def test_ttl_refresh(self, cache):
+        await cache.set("refresh_key", "value", ttl=1)
+        
+        await cache.refresh_ttl("refresh_key", ttl=60)
+        
+        await asyncio.sleep(1.5)
+        
+        result = await cache.get("refresh_key")
+        assert result == "value"
+
+    @pytest.mark.asyncio
+    async def test_get_many(self, cache):
+        await cache.set("key1", "value1", ttl=60)
+        await cache.set("key2", "value2", ttl=60)
+        await cache.set("key3", "value3", ttl=60)
+        
+        results = await cache.get_many(["key1", "key2", "key3", "nonexistent"])
+        assert results["key1"] == "value1"
+        assert results["key2"] == "value2"
+        assert results["key3"] == "value3"
+        assert results["nonexistent"] is None
+
+    @pytest.mark.asyncio
+    async def test_set_many(self, cache):
+        items = {
+            "multi_key1": "value1",
+            "multi_key2": "value2",
+            "multi_key3": "value3"
+        }
+        
+        await cache.set_many(items, ttl=60)
+        
+        assert await cache.get("multi_key1") == "value1"
+        assert await cache.get("multi_key2") == "value2"
+        assert await cache.get("multi_key3") == "value3"
+
+
+class TestCacheManagerWithRedis:
+    @pytest.fixture
+    def cache_with_redis(self):
+        with patch('agentforge.data.cache_manager.redis') as mock_redis:
+            mock_client = AsyncMock()
+            mock_redis.from_url.return_value = mock_client
+            
+            cache = CacheManager(redis_url="redis://localhost:6379")
+            cache._redis_client = mock_client
+            return cache, mock_client
+
+    @pytest.mark.asyncio
+    async def test_redis_set(self, cache_with_redis):
+        cache, mock_redis = cache_with_redis
+        mock_redis.set = AsyncMock(return_value=True)
+        
+        await cache.set("redis_key", "redis_value", ttl=60, level=CacheLevel.REDIS)
+        
+        mock_redis.set.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_redis_get(self, cache_with_redis):
+        cache, mock_redis = cache_with_redis
+        mock_redis.get = AsyncMock(return_value=json.dumps("redis_value"))
+        
+        result = await cache.get("redis_key", level=CacheLevel.REDIS)
+        
+        mock_redis.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_multi_level_cache(self, cache_with_redis):
+        cache, mock_redis = cache_with_redis
+        mock_redis.get = AsyncMock(return_value=None)
+        mock_redis.set = AsyncMock(return_value=True)
+        
+        await cache.set("multi_key", "value", ttl=60, level=CacheLevel.BOTH)
+        result = await cache.get("multi_key", level=CacheLevel.BOTH)
+        
+        assert result == "value"
+
+
+class TestCacheEviction:
+    @pytest.fixture
+    def cache_with_limit(self):
+        cache = CacheManager()
+        cache._max_local_size = 5
+        return cache
+
+    @pytest.mark.asyncio
+    async def test_eviction_on_size_limit(self, cache_with_limit):
+        for i in range(10):
+            await cache_with_limit.set(f"key_{i}", f"value_{i}", ttl=60)
+        
+        assert len(cache_with_limit._local_cache) <= 5
+
+    @pytest.mark.asyncio
+    async def test_lru_eviction(self, cache_with_limit):
+        for i in range(5):
+            await cache_with_limit.set(f"key_{i}", f"value_{i}", ttl=60)
+        
+        await cache_with_limit.get("key_0")
+        
+        await cache_with_limit.set("key_new", "new_value", ttl=60)
+        
+        assert await cache_with_limit.get("key_0") == "value_0"
+
+
+class TestCacheConcurrency:
+    @pytest.fixture
+    def cache(self):
+        return CacheManager()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_reads(self, cache):
+        await cache.set("concurrent_key", "value", ttl=60)
+        
+        async def read_operation():
+            return await cache.get("concurrent_key")
+        
+        results = await asyncio.gather(*[read_operation() for _ in range(100)])
+        
+        assert all(r == "value" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_writes(self, cache):
+        async def write_operation(i):
+            await cache.set(f"concurrent_write_{i}", f"value_{i}", ttl=60)
+        
+        await asyncio.gather(*[write_operation(i) for i in range(100)])
+        
+        for i in range(100):
+            result = await cache.get(f"concurrent_write_{i}")
+            assert result == f"value_{i}"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_read_write(self, cache):
+        await cache.set("rw_key", "initial", ttl=60)
+        
+        async def read_op():
+            return await cache.get("rw_key")
+        
+        async def write_op(i):
+            await cache.set("rw_key", f"value_{i}", ttl=60)
+        
+        operations = [read_op() for _ in range(50)] + [write_op(i) for i in range(50)]
+        await asyncio.gather(*operations)
+        
+        result = await cache.get("rw_key")
+        assert result is not None

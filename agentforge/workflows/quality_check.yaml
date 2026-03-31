@@ -1,0 +1,62 @@
+name: 质量检查流程
+version: "1.0.0"
+description: 订单交付前的质量检查
+trigger:
+  type: event
+  event_type: order_ready_for_delivery
+  conditions: []
+workflow:
+  - name: 检查订单要求
+    type: action
+    action_type: query_data
+    params:
+      type: order
+      params:
+        order_id: "{{order_id}}"
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 生成检查清单
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "根据订单要求生成质量检查清单：{{requirements}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 执行质量检查
+    type: action
+    action_type: create_task
+    params:
+      title: "质量检查 #{{order_id}}"
+      description: "{{ai_result}}"
+      priority: high
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 条件检查 - 是否通过
+    type: condition
+    conditions:
+      - field: qc_passed
+        operator: eq
+        value: true
+    timeout: 10
+    retry: 0
+    on_error: abort
+  - name: 批准交付
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/orders/{{order_id}}/approve"
+    timeout: 30
+    retry: 3
+    on_error: abort
+variables: {}
+enabled: true
+tags:
+  - quality
+  - check
+  - delivery
+author: System

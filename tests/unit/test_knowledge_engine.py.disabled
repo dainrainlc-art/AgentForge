@@ -1,0 +1,266 @@
+"""
+AgentForge 知识管理引擎单元测试
+测试知识管理相关的业务逻辑
+"""
+import pytest
+import sys
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Dict, Any
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+
+# Add the project root to the path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+# Import skill module directly with proper package handling
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "knowledge",
+    str(project_root / ".trae" / "skills" / "knowledge.py")
+)
+knowledge_module = importlib.util.module_from_spec(spec)
+
+# Define classes locally to avoid import issues
+class SkillStatus(Enum):
+    SUCCESS = "success"
+    FAILURE = "failure"
+    PENDING = "pending"
+    RUNNING = "running"
+
+@dataclass
+class SkillResult:
+    status: SkillStatus
+    data: Any = None
+    message: str = None
+    error: str = None
+    metadata: dict = None
+
+# Mock the base module
+import sys
+from unittest.mock import MagicMock
+base_module = MagicMock()
+base_module.BaseSkill = MagicMock
+base_module.SkillResult = SkillResult
+base_module.SkillStatus = SkillStatus
+sys.modules['knowledge.base'] = base_module
+sys.modules['.base', 'knowledge'] = base_module
+
+# Now execute the module
+spec.loader.exec_module(knowledge_module)
+
+KnowledgeManagementSkill = knowledge_module.KnowledgeManagementSkill
+
+
+# ============================================================================
+# Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def knowledge_skill():
+    """创建知识管理技能实例"""
+    return KnowledgeManagementSkill()
+
+
+@pytest.fixture
+def sample_context():
+    """示例上下文"""
+    return {
+        "action": "sync",
+        "direction": "bidirectional",
+        "source": "obsidian",
+        "target": "notion",
+    }
+
+
+# ============================================================================
+# Knowledge Management Skill Tests
+# ============================================================================
+
+
+class TestKnowledgeManagementSkill:
+    """KnowledgeManagementSkill 单元测试"""
+
+    def test_skill_initialization(self, knowledge_skill):
+        """测试技能初始化"""
+        assert knowledge_skill is not None
+        assert knowledge_skill.name == "knowledge_management"
+        assert knowledge_skill.description == "Obsidian 与 Notion 知识库同步与管理"
+
+    def test_skill_required_permissions(self, knowledge_skill):
+        """测试技能所需权限"""
+        assert "filesystem:read" in knowledge_skill.required_permissions
+        assert "filesystem:write" in knowledge_skill.required_permissions
+        assert "notion:read" in knowledge_skill.required_permissions
+        assert "notion:write" in knowledge_skill.required_permissions
+
+    @pytest.mark.asyncio
+    async def test_execute_sync_action(self, knowledge_skill, sample_context):
+        """测试执行同步操作"""
+        result = await knowledge_skill.execute(sample_context)
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert isinstance(result.data, dict)
+        assert "synced_files" in result.data
+        assert "conflicts" in result.data
+        assert result.data["direction"] == "bidirectional"
+
+    @pytest.mark.asyncio
+    async def test_execute_search_action(self, knowledge_skill):
+        """测试执行搜索操作"""
+        context = {
+            "action": "search",
+            "query": "test query",
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert isinstance(result.data, dict)
+        assert "results" in result.data
+        assert result.data["query"] == "test query"
+
+    @pytest.mark.asyncio
+    async def test_execute_create_note_action(self, knowledge_skill):
+        """测试执行创建笔记操作"""
+        context = {
+            "action": "create_note",
+            "title": "Test Note",
+            "content": "Test content",
+            "tags": ["test", "demo"],
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert isinstance(result.data, dict)
+        assert "note_id" in result.data
+        assert result.data["title"] == "Test Note"
+        assert result.data["tags"] == ["test", "demo"]
+
+    @pytest.mark.asyncio
+    async def test_execute_unknown_action(self, knowledge_skill):
+        """测试执行未知操作"""
+        context = {
+            "action": "unknown_action",
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.FAILURE
+        assert result.error is not None
+        assert "Unknown action" in result.error
+
+    @pytest.mark.asyncio
+    async def test_execute_empty_action(self, knowledge_skill):
+        """测试执行空操作"""
+        context = {}
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.FAILURE
+
+    @pytest.mark.asyncio
+    async def test_sync_knowledge_unidirectional(self, knowledge_skill):
+        """测试单向同步知识"""
+        context = {
+            "action": "sync",
+            "direction": "obsidian_to_notion",
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert result.data["direction"] == "obsidian_to_notion"
+
+    @pytest.mark.asyncio
+    async def test_sync_knowledge_default_direction(self, knowledge_skill):
+        """测试默认同步方向"""
+        context = {
+            "action": "sync",
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.data["direction"] == "bidirectional"
+
+    @pytest.mark.asyncio
+    async def test_search_knowledge_empty_query(self, knowledge_skill):
+        """测试空查询搜索"""
+        context = {
+            "action": "search",
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert result.data["query"] == ""
+
+    @pytest.mark.asyncio
+    async def test_create_note_minimal_context(self, knowledge_skill):
+        """测试最小化上下文创建笔记"""
+        context = {
+            "action": "create_note",
+        }
+        
+        result = await knowledge_skill.execute(context)
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert result.data["title"] == "Untitled"
+        assert result.data["tags"] == []
+
+
+class TestSkillResult:
+    """SkillResult 单元测试"""
+
+    def test_skill_result_success(self):
+        """测试成功结果"""
+        result = SkillResult(
+            status=SkillStatus.SUCCESS,
+            data={"key": "value"},
+            message="Operation completed",
+        )
+        
+        assert result.status == SkillStatus.SUCCESS
+        assert result.data == {"key": "value"}
+        assert result.message == "Operation completed"
+        assert result.error is None
+
+    def test_skill_result_failure(self):
+        """测试失败结果"""
+        result = SkillResult(
+            status=SkillStatus.FAILURE,
+            error="Something went wrong",
+        )
+        
+        assert result.status == SkillStatus.FAILURE
+        assert result.error == "Something went wrong"
+        assert result.data is None
+
+    def test_skill_result_with_metadata(self):
+        """测试带元数据的结果"""
+        result = SkillResult(
+            status=SkillStatus.SUCCESS,
+            data={"result": "data"},
+            metadata={"execution_time": 1.5, "retries": 0},
+        )
+        
+        assert result.metadata == {"execution_time": 1.5, "retries": 0}
+
+
+class TestSkillStatus:
+    """SkillStatus 单元测试"""
+
+    def test_skill_status_enum(self):
+        """测试技能状态枚举"""
+        assert SkillStatus.SUCCESS.value == "success"
+        assert SkillStatus.FAILURE.value == "failure"
+        assert SkillStatus.PENDING.value == "pending"
+        assert SkillStatus.RUNNING.value == "running"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

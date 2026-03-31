@@ -1,0 +1,38 @@
+[package]
+name = "agentforge"
+version = "1.0.0"
+description = "AgentForge - AI-Powered Personal Assistant System"
+authors = ["AgentForge Team"]
+license = "MIT"
+repository = "https://github.com/agentforge/agentforge"
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "1.6", features = ["clipboard-all", "dialog-all", "fs-all", "http-all", "notification-all", "path-all", "shell-open", "system-tray", "updater", "window-all", "globalShortcut-all", "os-all", "process-relaunch", "protocol-asset"] }
+tauri-plugin-positioner = { version = "1.0", features = ["system-tray"] }
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+log = "0.4"
+env_logger = "0.11"
+sys-info = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
+keyring = "2.0"
+auto-launch = "0.5"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true

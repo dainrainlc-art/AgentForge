@@ -1,0 +1,171 @@
+{
+  "name": "知识库同步",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 */2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger-sync",
+      "name": "定时触发（每2小时）",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "path": "/obsidian",
+        "options": {}
+      },
+      "id": "read-obsidian-files",
+      "name": "读取 Obsidian 文件",
+      "type": "n8n-nodes-base.readWriteFiles",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-files-batches",
+      "name": "分批处理文件",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/knowledge/documents",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": $input.item.json.fileName,\n  \"content\": $input.item.json.data,\n  \"source\": \"obsidian\",\n  \"tags\": []\n}"
+      },
+      "id": "sync-to-db",
+      "name": "同步到数据库",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/knowledge/documents/{{ $input.item.json.document_id }}/embed",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "id": "generate-embedding",
+      "name": "生成向量嵌入",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1050,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "定时触发（每2小时）": {
+      "main": [
+        [
+          {
+            "node": "读取 Obsidian 文件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "读取 Obsidian 文件": {
+      "main": [
+        [
+          {
+            "node": "分批处理文件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "分批处理文件": {
+      "main": [
+        [
+          {
+            "node": "同步到数据库",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "同步到数据库": {
+      "main": [
+        [
+          {
+            "node": "生成向量嵌入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成向量嵌入": {
+      "main": [
+        [
+          {
+            "node": "分批处理文件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "versionId": "1"
+}

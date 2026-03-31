@@ -1,0 +1,40 @@
+{
+  "name": "客户跟进提醒",
+  "version": "1.0.0",
+  "description": "自动跟进客户",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 10 * * 1"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "customers",
+        "params": {
+          "last_contact_days": 7,
+          "status": "active"
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "为以下客户生成跟进消息：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "create_task",
+      "params": {
+        "title": "跟进客户",
+        "description": "{{ai_result}}",
+        "priority": "medium"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["customer", "follow-up"],
+  "author": "System"
+}

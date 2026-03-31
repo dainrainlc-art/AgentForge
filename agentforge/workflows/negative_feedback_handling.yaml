@@ -1,0 +1,63 @@
+name: 差评处理工作流
+version: "1.0.0"
+description: 自动检测和处理差评预警
+trigger:
+  type: event
+  event_type: negative_feedback
+  conditions: []
+workflow:
+  - name: 分析差评内容
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "分析以下客户反馈的情绪和问题：{{feedback_content}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 生成解决方案
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "基于以下分析，生成解决方案和安抚话术：{{ai_result}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 发送安抚消息
+    type: action
+    action_type: send_message
+    params:
+      to: "{{customer_id}}"
+      subject: "关于您的反馈"
+      content: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 创建紧急任务
+    type: action
+    action_type: create_task
+    params:
+      title: "处理差评预警 #{{order_id}}"
+      description: "客户反馈：{{feedback_content}}\n分析结果：{{ai_result}}"
+      priority: urgent
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 通知管理员
+    type: action
+    action_type: send_message
+    params:
+      to: "admin"
+      subject: "差评预警通知"
+      content: "订单 #{{order_id}} 收到差评预警，已自动处理并创建紧急任务。"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - feedback
+  - urgent
+  - customer-service
+author: System

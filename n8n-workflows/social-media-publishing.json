@@ -1,0 +1,351 @@
+{
+  "name": "Social Media Publishing Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9,12,17,20 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Publishing Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/social/calendar/upcoming",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$credentials.apiToken}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-scheduled",
+      "name": "Get Scheduled Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "scheduled"
+            }
+          ]
+        }
+      },
+      "id": "filter-scheduled",
+      "name": "Filter Scheduled",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/social/content/adapt",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{$json.content}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "hashtags",
+              "value": "={{$json.hashtags}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "adapt-content",
+      "name": "Adapt Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/social/accounts/{{$json.platform}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-account",
+      "name": "Get Account Credentials",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Publish to social media\nconst platform = $input.item.json.platform;\nconst content = $input.item.json.adapted_content;\nconst credentials = $input.item.json.credentials;\n\n// Platform-specific publishing logic\nlet publishResult;\n\nswitch(platform) {\n  case 'twitter':\n    // Twitter API publish\n    publishResult = {\n      success: true,\n      post_id: 'tw_' + Date.now(),\n      url: 'https://twitter.com/status/' + Date.now()\n    };\n    break;\n  case 'linkedin':\n    // LinkedIn API publish\n    publishResult = {\n      success: true,\n      post_id: 'li_' + Date.now(),\n      url: 'https://linkedin.com/posts/' + Date.now()\n    };\n    break;\n  case 'instagram':\n    // Instagram API publish\n    publishResult = {\n      success: true,\n      post_id: 'ig_' + Date.now(),\n      url: 'https://instagram.com/p/' + Date.now()\n    };\n    break;\n  default:\n    publishResult = {\n      success: false,\n      error: 'Unsupported platform'\n    };\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    publish_result: publishResult\n  }\n};"
+      },
+      "id": "publish-post",
+      "name": "Publish to Platform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.publish_result.success}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "Publish Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/social/analytics/record",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "post_id",
+              "value": "={{$json.publish_result.post_id}}"
+            },
+            {
+              "name": "platform",
+              "value": "={{$json.platform}}"
+            },
+            {
+              "name": "status",
+              "value": "published"
+            },
+            {
+              "name": "url",
+              "value": "={{$json.publish_result.url}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "record-success",
+      "name": "Record Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "alert"
+            },
+            {
+              "name": "title",
+              "value": "Publish Failed"
+            },
+            {
+              "name": "message",
+              "value": "=发布到 {{$json.platform}} 失败: {{$json.publish_result.error}}"
+            },
+            {
+              "name": "priority",
+              "value": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-failure",
+      "name": "Notify Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/social/calendar/{{$json.event_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "published"
+            }
+          ]
+        },
+        "options": {
+          "method": "PUT"
+        }
+      },
+      "id": "update-calendar",
+      "name": "Update Calendar Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Publishing Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Scheduled Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Scheduled Posts": {
+      "main": [
+        [
+          {
+            "node": "Filter Scheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Scheduled": {
+      "main": [
+        [
+          {
+            "node": "Adapt Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Account Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adapt Content": {
+      "main": [
+        [
+          {
+            "node": "Publish to Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Account Credentials": {
+      "main": [
+        [
+          {
+            "node": "Publish to Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish to Platform": {
+      "main": [
+        [
+          {
+            "node": "Publish Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Success?": {
+      "main": [
+        [
+          {
+            "node": "Record Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Success": {
+      "main": [
+        [
+          {
+            "node": "Update Calendar Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Failure": {
+      "main": [
+        [
+          {
+            "node": "Update Calendar Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "2",
+      "name": "Social Media"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,310 @@
+{
+  "name": "Fiverr Order Monitor Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/fiverr/orders",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$credentials.apiToken}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-orders",
+      "name": "Get Fiverr Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "active"
+            }
+          ]
+        }
+      },
+      "id": "filter-active",
+      "name": "Filter Active Orders",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/chat",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=分析订单 {{$json.order_id}} 的状态，并生成跟进建议"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "analyze-order",
+      "name": "AI Analyze Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/fiverr/quotation/generate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "request_text",
+              "value": "={{$json.description}}"
+            },
+            {
+              "name": "buyer_username",
+              "value": "={{$json.buyer_username}}"
+            },
+            {
+              "name": "project_title",
+              "value": "={{$json.title}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-quote",
+      "name": "Generate Quotation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "late"
+            }
+          ]
+        }
+      },
+      "id": "check-late",
+      "name": "Is Order Late?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/notifications/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "alert"
+            },
+            {
+              "name": "title",
+              "value": "Late Order Alert"
+            },
+            {
+              "name": "message",
+              "value": "=订单 {{$json.order_id}} 已延迟，请立即处理"
+            },
+            {
+              "name": "priority",
+              "value": "urgent"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-alert",
+      "name": "Send Late Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://agentforge:8000/api/backup/create",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "backup_type",
+              "value": "incremental"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "backup-data",
+      "name": "Backup Order Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "completed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-status",
+      "name": "Set Completed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Fiverr Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Fiverr Orders": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Orders": {
+      "main": [
+        [
+          {
+            "node": "AI Analyze Order",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Quotation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analyze Order": {
+      "main": [
+        [
+          {
+            "node": "Is Order Late?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Order Late?": {
+      "main": [
+        [
+          {
+            "node": "Send Late Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Backup Order Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Late Alert": {
+      "main": [
+        [
+          {
+            "node": "Set Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backup Order Data": {
+      "main": [
+        [
+          {
+            "node": "Set Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "1",
+      "name": "Fiverr"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

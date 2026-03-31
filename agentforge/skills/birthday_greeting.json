@@ -1,0 +1,39 @@
+{
+  "name": "生日祝福发送",
+  "version": "1.0.0",
+  "description": "客户生日自动发送祝福",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 9 * * *"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "customers",
+        "params": {
+          "birthday_today": true
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "为以下客户生成生日祝福：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{customer_id}}",
+        "content": "{{ai_result}}",
+        "subject": "生日快乐！"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["customer", "birthday"],
+  "author": "System"
+}

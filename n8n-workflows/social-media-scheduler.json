@@ -1,0 +1,214 @@
+{
+  "name": "社交媒体发布调度",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 9,14,19 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger-scheduler",
+      "name": "定时触发（每日3次）",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.API_BASE_URL }}/social/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.API_TOKEN }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "scheduled"
+            }
+          ]
+        }
+      },
+      "id": "get-scheduled-posts",
+      "name": "获取待发布内容",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $input.all();\nconst now = new Date();\n\nconst readyPosts = posts.filter(item => {\n  if (!item.json.scheduled_at) return false;\n  const scheduledAt = new Date(item.json.scheduled_at);\n  return scheduledAt <= now;\n});\n\nreturn readyPosts;"
+      },
+      "id": "filter-ready-posts",
+      "name": "筛选准备发布的内容",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-in-batches",
+      "name": "分批处理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/social/posts/{{ $input.item.json.id }}/publish",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "id": "publish-post",
+      "name": "发布到平台",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.API_BASE_URL }}/social/posts/{{ $input.item.json.id }}/status",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"posted\"\n}"
+      },
+      "id": "update-post-status",
+      "name": "更新发布状态",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1250,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "定时触发（每日3次）": {
+      "main": [
+        [
+          {
+            "node": "获取待发布内容",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取待发布内容": {
+      "main": [
+        [
+          {
+            "node": "筛选准备发布的内容",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "筛选准备发布的内容": {
+      "main": [
+        [
+          {
+            "node": "分批处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "分批处理": {
+      "main": [
+        [
+          {
+            "node": "发布到平台",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "发布到平台": {
+      "main": [
+        [
+          {
+            "node": "更新发布状态",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "更新发布状态": {
+      "main": [
+        [
+          {
+            "node": "分批处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {},
+  "versionId": "1"
+}

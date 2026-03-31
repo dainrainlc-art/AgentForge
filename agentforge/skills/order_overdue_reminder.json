@@ -1,0 +1,40 @@
+{
+  "name": "订单逾期提醒",
+  "version": "1.0.0",
+  "description": "监控即将逾期的订单并提醒",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 9 * * *"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "orders",
+        "params": {
+          "status": "in_progress",
+          "due_within_days": 2
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "根据以下即将逾期的订单生成提醒消息：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "user",
+        "subject": "订单逾期提醒",
+        "content": "{{ai_result}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["order", "reminder"],
+  "author": "System"
+}

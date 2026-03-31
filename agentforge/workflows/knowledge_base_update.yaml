@@ -1,0 +1,46 @@
+name: 知识库自动更新
+version: "1.0.0"
+description: 根据新内容自动更新知识库
+trigger:
+  type: event
+  event_type: new_content
+  conditions: []
+workflow:
+  - name: 分析新内容
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "分析以下新内容，提取关键信息：{{content}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 生成知识条目
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "根据分析结果生成知识库条目：{{ai_result}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 保存到知识库
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/knowledge-base"
+      body:
+        title: "{{content_title}}"
+        content: "{{ai_result}}"
+        category: "{{category}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - knowledge
+  - update
+  - automation
+author: System

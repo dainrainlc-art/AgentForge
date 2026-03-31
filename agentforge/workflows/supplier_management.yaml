@@ -1,0 +1,53 @@
+name: 供应商管理流程
+version: "1.0.0"
+description: 供应商评估和管理
+trigger:
+  type: timer
+  cron: "0 9 1 * *"
+  conditions: []
+workflow:
+  - name: 查询供应商绩效
+    type: action
+    action_type: query_data
+    params:
+      type: suppliers
+      params:
+        period: monthly
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 评估供应商
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "评估以下供应商绩效：{{data}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 生成改进建议
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "为低绩效供应商生成改进建议：{{ai_result}}"
+    timeout: 60
+    retry: 2
+    on_error: continue
+  - name: 发送评估报告
+    type: action
+    action_type: send_message
+    params:
+      to: "procurement_team"
+      subject: "供应商月度评估报告"
+      content: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - supplier
+  - management
+  - evaluation
+author: System

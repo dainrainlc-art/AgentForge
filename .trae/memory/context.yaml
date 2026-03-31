@@ -1,0 +1,250 @@
+# AgentForge 项目全局上下文规则
+
+## 项目基本信息
+
+project_name: AgentForge
+project_version: 1.0.0
+project_description: Fiverr运营自动化智能助理系统
+core_framework: OpenAkita
+target_user: 医疗器械行业资深研发总监，Fiverr兼职开发者
+deployment_env: Microsoft Surface Pro 7+ (本地部署)
+
+## 核心技术栈决策
+
+### 核心AI模型：GLM-5
+core_model: glm-5
+core_model_rationale: |
+  GLM-5选型理由：
+  1. 多语言处理能力强 - 适合国际化Fiverr业务
+  2. 内容创作能力优秀 - 社交媒体营销场景
+  3. 客户沟通表现突出 - 专业友好的沟通风格
+  4. 响应效率与质量平衡 - 日常运营自动化
+  5. 中文理解能力强 - 用户交互友好
+
+### 核心工作流引擎：N8N
+core_workflow_engine: n8n
+n8n_role: |
+  N8N核心角色：
+  1. 跨平台工作流编排引擎
+  2. 处理规则明确、可自动化的重复性任务
+  3. 与GLM-5协同：GLM-5处理智能推理，N8N处理流程执行
+  4. 支持200+应用程序的原生集成
+  5. 可视化工作流编辑，便于维护
+
+## 技术栈
+
+### AI能力层
+llm_provider: 百度千帆 Coding Plan Pro
+core_model: glm-5
+available_models:
+  - name: glm-5
+    context_window: 64000
+    specialty: 多语言处理、内容创作、客户沟通
+    is_core: true
+  - name: kimi-k2.5
+    context_window: 128000
+    specialty: 长上下文理解、多轮对话、复杂推理
+    is_core: false
+  - name: deepseek-v3.2
+    context_window: 64000
+    specialty: 代码生成、技术写作、调试分析
+    is_core: false
+  - name: minimax-m2.5
+    context_window: 32000
+    specialty: 快速响应、实时交互、简单任务
+    is_core: false
+
+api_endpoints:
+  openai_compatible: https://qianfan.baidubce.com/v2/coding
+  anthropic_compatible: https://qianfan.baidubce.com/anthropic/coding
+
+### 工作流引擎
+workflow_engine: n8n
+n8n_port: 5678
+n8n_features:
+  - 可视化工作流编辑
+  - 200+原生集成节点
+  - Webhook支持
+  - 定时任务调度
+  - 错误处理与重试
+  - 自托管部署
+
+### 数据存储
+databases:
+  - type: PostgreSQL
+    port: 5432
+    purpose: 结构化业务数据
+  - type: Redis
+    port: 6379
+    purpose: 缓存与会话
+  - type: Qdrant
+    port: 6333
+    purpose: 向量检索
+
+### 知识管理
+knowledge_base:
+  local: Obsidian
+  cloud: Notion
+  sync: n8n工作流
+
+### 代码托管
+code_hosting: GitHub
+
+## GLM-5与N8N协同架构
+
+### 协同模式
+collaboration_patterns:
+  pattern_1:
+    name: 内容生成与发布
+    flow: GLM-5生成内容 → 人工审核 → N8N执行发布流程
+    scenarios:
+      - 社交媒体内容发布
+      - 客户消息回复
+      - 项目报告生成
+  
+  pattern_2:
+    name: 事件监控与响应
+    flow: N8N监控事件 → GLM-5分析处理 → N8N执行响应
+    scenarios:
+      - Fiverr订单处理
+      - 客户消息通知
+      - 系统告警响应
+  
+  pattern_3:
+    name: 定时任务与报告
+    flow: N8N定时触发 → GLM-5生成报告 → N8N分发通知
+    scenarios:
+      - 每日运营报告
+      - 周报生成
+      - 数据分析报告
+
+### N8N工作流场景
+n8n_workflows:
+  fiverr_automation:
+    - 订单监控与通知
+    - 客户消息处理
+    - 交付物打包
+    - 评价收集
+  
+  social_media:
+    - 内容定时发布
+    - 多平台适配
+    - 互动监控
+    - 效果统计
+  
+  knowledge_sync:
+    - Obsidian-Notion同步
+    - 文档版本管理
+    - 冲突检测与解决
+  
+  github_backup:
+    - 代码自动提交
+    - 版本标签管理
+    - Release发布
+
+## 开发规范
+
+### 代码风格
+python:
+  formatter: black
+  linter: ruff
+  type_checker: mypy
+
+typescript:
+  formatter: prettier
+  linter: eslint
+  type_checker: tsc
+
+### 分支策略
+branches:
+  main: 生产分支
+  develop: 开发分支
+  feature/*: 功能分支
+  hotfix/*: 紧急修复分支
+
+### 提交规范
+commit_message_format: |
+  <type>(<scope>): <subject>
+  
+  <body>
+  
+  <footer>
+
+types:
+  - feat: 新功能
+  - fix: 修复
+  - docs: 文档
+  - style: 格式
+  - refactor: 重构
+  - test: 测试
+  - chore: 构建/工具
+
+## 安全规范
+
+### 数据分类
+data_classification:
+  sensitive:
+    - 客户信息
+    - 支付信息
+    - 源代码
+    - 商业机密
+  internal:
+    - 项目文档
+    - 沟通记录
+    - 配置信息
+  public:
+    - 已发布内容
+    - 公开Profile
+
+### 安全措施
+security_measures:
+  transmission: TLS 1.3
+  storage: AES-256
+  api_key: 环境变量
+  access_control: 最小权限原则
+
+## API限流配置
+
+### 百度千帆
+qianfan_rate_limits:
+  per_5_hours: 6000
+  per_week: 45000
+  per_month: 90000
+  web_search_per_month: 2000
+
+### 社交媒体API
+social_api_limits:
+  youtube:
+    daily_quota: 10000
+  twitter:
+    tweets_per_day: 300
+  facebook:
+    calls_per_hour: 200
+
+## 环境变量
+
+required_env_vars:
+  - QIANFAN_API_KEY
+  - POSTGRES_PASSWORD
+  - N8N_PASSWORD
+  - GITHUB_TOKEN
+
+optional_env_vars:
+  - NOTION_API_KEY
+  - YOUTUBE_API_KEY
+  - TWITTER_API_KEY
+  - FACEBOOK_API_KEY
+  - INSTAGRAM_API_KEY
+
+## 工作时间配置
+
+timezone: Asia/Shanghai
+working_hours:
+  start: "09:00"
+  end: "18:00"
+
+scheduled_tasks:
+  memory_consolidation: "03:00"
+  self_check: "04:00"
+  backup: "05:00"
+  n8n_workflow_sync: "06:00"

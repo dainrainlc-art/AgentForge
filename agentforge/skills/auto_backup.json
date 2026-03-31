@@ -1,0 +1,42 @@
+{
+  "name": "自动备份数据",
+  "version": "1.0.0",
+  "description": "定期自动备份重要数据",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 2 * * *"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "orders",
+        "params": {
+          "date_range": "last_7_days"
+        }
+      }
+    },
+    {
+      "type": "http_request",
+      "params": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/backup",
+        "body": {
+          "data": "{{data}}",
+          "backup_type": "weekly"
+        }
+      }
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "admin",
+        "subject": "数据备份完成",
+        "content": "每周数据备份已完成，备份文件已保存到指定位置。"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["backup", "data"],
+  "author": "System"
+}

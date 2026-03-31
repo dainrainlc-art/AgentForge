@@ -1,0 +1,63 @@
+name: 库存预警管理
+version: "1.0.0"
+description: 监控库存水平并自动预警
+trigger:
+  type: timer
+  cron: "0 8 * * *"
+  conditions: []
+workflow:
+  - name: 查询库存数据
+    type: action
+    action_type: query_data
+    params:
+      type: inventory
+      params:
+        check_low_stock: true
+    timeout: 30
+    retry: 3
+    on_error: abort
+  - name: 条件检查 - 是否有低库存
+    type: condition
+    conditions:
+      - field: low_stock_items
+        operator: exists
+        value: true
+    timeout: 10
+    retry: 0
+    on_error: continue
+  - name: 生成采购建议
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "根据以下低库存商品生成采购建议：{{low_stock_items}}"
+    timeout: 60
+    retry: 2
+    on_error: continue
+  - name: 创建采购任务
+    type: action
+    action_type: create_task
+    params:
+      title: "库存预警 - 需要采购"
+      description: "{{ai_result}}"
+      priority: high
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 发送预警通知
+    type: action
+    action_type: send_message
+    params:
+      to: "procurement_team"
+      subject: "库存预警通知"
+      content: "以下商品库存低于安全水平：{{low_stock_items}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - inventory
+  - warning
+  - procurement
+author: System

@@ -1,0 +1,41 @@
+{
+  "name": "客户分类管理",
+  "version": "1.0.0",
+  "description": "根据订单历史自动分类客户",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 3 * * 0"
+  },
+  "actions": [
+    {
+      "type": "query_data",
+      "params": {
+        "type": "customers",
+        "params": {
+          "order_count": "all"
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "根据以下客户订单历史，将客户分为 VIP、普通、潜在三类：{{data}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "http_request",
+      "params": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/customers/classify",
+        "body": {
+          "classifications": "{{ai_result}}"
+        }
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["customer", "classification"],
+  "author": "System"
+}

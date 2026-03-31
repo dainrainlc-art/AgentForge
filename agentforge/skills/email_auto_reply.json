@@ -1,0 +1,31 @@
+{
+  "name": "邮件自动回复",
+  "version": "1.0.0",
+  "description": "自动回复客户邮件",
+  "trigger": {
+    "type": "event",
+    "event_type": "new_email",
+    "conditions": []
+  },
+  "actions": [
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "请回复这封邮件：{{email_content}}，语气专业友好"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{sender}}",
+        "subject": "Re: {{email_subject}}",
+        "content": "{{ai_result}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["email", "auto-reply"],
+  "author": "System"
+}

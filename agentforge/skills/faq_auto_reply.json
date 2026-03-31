@@ -1,0 +1,48 @@
+{
+  "name": "自动回复常见问题",
+  "version": "1.0.0",
+  "description": "识别并自动回复常见问题",
+  "trigger": {
+    "type": "event",
+    "event_type": "new_message",
+    "conditions": []
+  },
+  "actions": [
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "判断以下消息是否是常见问题：{{message_content}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "condition",
+      "conditions": [
+        {
+          "field": "ai_result",
+          "operator": "contains",
+          "value": "是"
+        }
+      ]
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "回复以下常见问题：{{message_content}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "{{sender_id}}",
+        "content": "{{ai_result}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["faq", "auto-reply"],
+  "author": "System"
+}

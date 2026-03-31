@@ -1,0 +1,116 @@
+# ===========================================
+# Alertmanager 告警通知配置
+# 支持邮件、Telegram、Webhook 等多种通知渠道
+# ===========================================
+
+global:
+  smtp_smarthost: '${SMTP_HOST:-smtp.example.com}:587'
+  smtp_from: '${SMTP_FROM:-alertmanager@example.com}'
+  smtp_auth_username: '${SMTP_USERNAME:-alertmanager@example.com}'
+  smtp_auth_password: '${SMTP_PASSWORD:-}'
+  smtp_require_tls: true
+
+  # Slack API URL（可选）
+  slack_api_url: '${SLACK_WEBHOOK_URL:-}'
+
+  # Telegram Bot Token（可选）
+  telegram_api_url: 'https://api.telegram.org'
+
+# 模板文件
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# 路由配置
+route:
+  receiver: 'default-receiver'
+  group_by: ['alertname', 'severity', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # 严重告警 - 立即通知
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: true
+
+    # 警告级别告警 - 邮件通知
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+      group_wait: 1m
+      repeat_interval: 6h
+
+    # API 服务告警
+    - match:
+        service: api
+      receiver: 'api-team-receiver'
+      group_by: ['alertname', 'severity']
+
+    # 数据库告警
+    - match:
+        service: postgres
+      receiver: 'dba-team-receiver'
+      group_by: ['alertname', 'severity']
+
+# 接收器配置
+receivers:
+  # 默认接收器
+  - name: 'default-receiver'
+    email_configs:
+      - to: '${ALERT_EMAIL:-admin@example.com}'
+        send_resolved: true
+        html: '{{ template "email.default.html" . }}'
+
+  # 严重告警接收器（多渠道通知）
+  - name: 'critical-receiver'
+    email_configs:
+      - to: '${CRITICAL_ALERT_EMAIL:-oncall@example.com}'
+        send_resolved: true
+        html: '{{ template "email.critical.html" . }}'
+    telegram_configs:
+      - bot_token: '${TELEGRAM_BOT_TOKEN:-}'
+        chat_id: '${TELEGRAM_CHAT_ID:-}'
+        send_resolved: true
+        message: '{{ template "telegram.message" . }}'
+
+  # 警告接收器
+  - name: 'warning-receiver'
+    email_configs:
+      - to: '${ALERT_EMAIL:-admin@example.com}'
+        send_resolved: true
+
+  # API 团队接收器
+  - name: 'api-team-receiver'
+    email_configs:
+      - to: '${API_TEAM_EMAIL:-api-team@example.com}'
+        send_resolved: true
+    webhook_configs:
+      - url: '${WEBHOOK_URL:-}'
+        send_resolved: true
+
+  # DBA 团队接收器
+  - name: 'dba-team-receiver'
+    email_configs:
+      - to: '${DBA_TEAM_EMAIL:-dba-team@example.com}'
+        send_resolved: true
+
+# 告警抑制规则
+inhibit_rules:
+  # 如果服务宕机，抑制其他相关告警
+  - source_match:
+      severity: 'critical'
+      alertname: 'AgentForgeAPIDown'
+    target_match:
+      severity: 'warning'
+    equal: ['service', 'instance']
+
+  # 如果数据库宕机，抑制连接数和磁盘空间告警
+  - source_match:
+      alertname: 'PostgresDown'
+    target_match_re:
+      alertname: 'Postgres.*'
+    equal: ['service']

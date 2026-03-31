@@ -1,0 +1,40 @@
+{
+  "name": "竞争对手监控",
+  "version": "1.0.0",
+  "description": "监控竞争对手的价格和服务",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 14 * * *"
+  },
+  "actions": [
+    {
+      "type": "http_request",
+      "params": {
+        "method": "GET",
+        "url": "https://competitor-api.com/prices",
+        "headers": {
+          "Authorization": "Bearer {{competitor_api_key}}"
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "分析以下竞争对手价格数据，给出调价建议：{{http_response}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "send_message",
+      "params": {
+        "to": "user",
+        "subject": "竞争对手价格分析报告",
+        "content": "{{ai_result}}"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["competitor", "analysis"],
+  "author": "System"
+}

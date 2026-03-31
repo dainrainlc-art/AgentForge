@@ -1,0 +1,44 @@
+{
+  "name": "社交媒体互动监控",
+  "version": "1.0.0",
+  "description": "监控社交媒体上的提及和互动",
+  "trigger": {
+    "type": "timer",
+    "cron": "0 */2 * * *"
+  },
+  "actions": [
+    {
+      "type": "http_request",
+      "params": {
+        "method": "GET",
+        "url": "https://api.twitter.com/2/search/recent",
+        "headers": {
+          "Authorization": "Bearer {{twitter_token}}"
+        },
+        "body": {
+          "query": "{{brand_name}}",
+          "max_results": 50
+        }
+      }
+    },
+    {
+      "type": "ai_generate",
+      "params": {
+        "model": "glm-5",
+        "prompt": "分析以下社交媒体提及，识别需要回复的内容：{{http_response}}"
+      },
+      "timeout": 60
+    },
+    {
+      "type": "create_task",
+      "params": {
+        "title": "处理社交媒体互动",
+        "description": "{{ai_result}}",
+        "priority": "medium"
+      }
+    }
+  ],
+  "enabled": true,
+  "tags": ["social-media", "monitoring"],
+  "author": "System"
+}

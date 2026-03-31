@@ -1,0 +1,71 @@
+name: 社交媒体内容发布
+version: "1.0.0"
+description: 自动生成并发布社交媒体内容
+trigger:
+  type: timer
+  cron: "0 9 * * *"
+  conditions: []
+workflow:
+  - name: 生成内容主题
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "生成 5 个关于{{topic}}的社交媒体内容创意"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 选择最佳主题
+    type: condition
+    conditions:
+      - field: ai_result
+        operator: exists
+        value: true
+    timeout: 10
+    retry: 0
+    on_error: abort
+  - name: 生成完整内容
+    type: action
+    action_type: ai_generate
+    params:
+      model: glm-5
+      prompt: "根据以下创意生成完整的社交媒体帖子：{{ai_result}}"
+    timeout: 60
+    retry: 2
+    on_error: abort
+  - name: 发布到 Twitter
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "https://api.twitter.com/2/tweets"
+      headers:
+        Authorization: "Bearer {{twitter_token}}"
+        Content-Type: application/json
+      body:
+        text: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+  - name: 发布到 LinkedIn
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "https://api.linkedin.com/v2/shares"
+      headers:
+        Authorization: "Bearer {{linkedin_token}}"
+        Content-Type: application/json
+      body:
+        text:
+          text: "{{ai_result}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - social-media
+  - content
+  - automation
+author: System

@@ -1,0 +1,88 @@
+# ===========================================
+# AgentForge 生产环境 Dockerfile
+# 多阶段构建优化镜像大小和安全性
+# ===========================================
+
+# Stage 1: 依赖构建阶段
+FROM python:3.12-slim as dependency-builder
+
+WORKDIR /build
+
+# 使用国内镜像源加速
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+
+# 安装构建依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件
+COPY requirements.txt .
+
+# 使用国内 pip 镜像源
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple --target=/build/deps -r requirements.txt
+
+# Stage 2: 前端构建阶段（可选）
+FROM node:18-alpine as frontend-builder
+
+WORKDIR /frontend
+
+# 复制前端依赖
+COPY frontend/package*.json ./
+
+# 安装前端依赖
+RUN npm ci --only=production
+
+# 复制前端源代码并构建
+COPY frontend/ .
+RUN npm run build
+
+# Stage 3: 生产运行阶段
+FROM python:3.12-slim as production
+
+WORKDIR /app
+
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app:/app/deps
+ENV PATH=/app/deps/bin:$PATH
+
+# 安装运行时依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 创建非 root 用户
+RUN groupadd --gid 1000 appgroup && \
+    useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
+
+# 复制依赖
+COPY --from=dependency-builder /build/deps /app/deps
+
+# 复制应用代码
+COPY agentforge ./agentforge
+COPY integrations ./integrations
+COPY run.py .
+
+# 创建必要的目录并设置权限
+RUN mkdir -p logs data/uploads && \
+    chown -R appuser:appgroup /app && \
+    chmod -R 755 /app
+
+# 切换到非 root 用户
+USER appuser
+
+# 暴露端口
+EXPOSE 8000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# 启动命令
+CMD ["python", "-m", "uvicorn", "integrations.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

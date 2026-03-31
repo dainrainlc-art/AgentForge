@@ -1,0 +1,497 @@
+"""
+Order Tracker 补充测试 - 提升覆盖率到 80%
+"""
+import pytest
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
+from integrations.external.fiverr_client import FiverrOrder
+from agentforge.fiverr.order_tracker import (
+    OrderTracker,
+    OrderStatus,
+    TrackingEvent,
+    OrderTrackerConfig,
+    TrackedOrder
+)
+
+
+class TestOrderTrackerAdvanced:
+    """OrderTracker 高级测试"""
+    
+    @pytest.fixture
+    def config(self):
+        return OrderTrackerConfig(
+            check_interval_seconds=60,
+            late_threshold_hours=12,
+            reminder_before_due_hours=6,
+            enable_notifications=True,
+            track_status_changes=True
+        )
+    
+    @pytest.fixture
+    def mock_fiverr_client(self):
+        client = AsyncMock()
+        client.get_orders = AsyncMock(return_value=[])
+        return client
+    
+    @pytest.fixture
+    def tracker(self, mock_fiverr_client, config):
+        return OrderTracker(
+            fiverr_client=mock_fiverr_client,
+            config=config
+        )
+    
+    def test_config_custom_values(self, config):
+        """测试自定义配置值"""
+        assert config.check_interval_seconds == 60
+        assert config.late_threshold_hours == 12
+        assert config.reminder_before_due_hours == 6
+        assert config.enable_notifications is True
+        assert config.track_status_changes is True
+    
+    @pytest.mark.asyncio
+    async def test_start_tracking_already_running(self, tracker):
+        """测试启动已经运行的追踪器"""
+        tracker._running = True
+        await tracker.start_tracking()
+        # 不应该创建新任务
+        assert tracker._tracker_task is None
+    
+    @pytest.mark.asyncio
+    async def test_stop_tracking_not_running(self, tracker):
+        """测试停止未运行的追踪器"""
+        await tracker.stop_tracking()
+        assert tracker._running is False
+    
+    @pytest.mark.asyncio
+    async def test_stop_tracking_with_task(self, tracker):
+        """测试停止有任务的追踪器"""
+        tracker._running = True
+        mock_task = AsyncMock()
+        mock_task.cancel = MagicMock()
+        tracker._tracker_task = mock_task
+        
+        await tracker.stop_tracking()
+        assert tracker._running is False
+        mock_task.cancel.assert_called_once()
+    
+    def test_add_order_to_track_duplicate(self, tracker):
+        """测试添加重复订单"""
+        # 使用 FiverrOrder 对象
+        order = FiverrOrder(
+            id="order_123",
+            buyer_username="test",
+            seller_username="seller",
+            title="Test",
+            description="Test order",
+            price=100.0,
+            status="active",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        
+        # 第一次添加
+        tracker.add_order_to_track(order)
+        assert "order_123" in tracker._tracked_orders
+        
+        # 第二次添加（应该忽略）
+        tracker.add_order_to_track(order)
+        assert len(tracker._tracked_orders) == 1
+    
+    def test_remove_order_from_track_not_exists(self, tracker):
+        """测试删除不存在的订单"""
+        result = tracker.remove_order_from_track("nonexistent")
+        assert result is False
+    
+    def test_remove_order_from_track_exists(self, tracker):
+        """测试删除存在的订单"""
+        order = FiverrOrder(
+            id="order_456",
+            buyer_username="test",
+            seller_username="seller",
+            title="Test",
+            description="Test order",
+            price=100.0,
+            status="active",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        
+        tracker.add_order_to_track(order)
+        assert "order_456" in tracker._tracked_orders
+        
+        result = tracker.remove_order_from_track("order_456")
+        assert result is True
+        assert "order_456" not in tracker._tracked_orders
+    
+    def test_estimate_due_date_completed_order(self, tracker):
+        """测试已完成订单的预计日期"""
+        mock_order = MagicMock()
+        mock_order.status = OrderStatus.COMPLETED
+        mock_order.created_at = datetime.now()
+        
+        result = tracker._estimate_due_date(mock_order)
+        assert result is None
+    
+    def test_estimate_due_date_cancelled_order(self, tracker):
+        """测试已取消订单的预计日期"""
+        mock_order = MagicMock()
+        mock_order.status = OrderStatus.CANCELLED
+        mock_order.created_at = datetime.now()
+        
+        result = tracker._estimate_due_date(mock_order)
+        assert result is None
+    
+    def test_estimate_due_date_active_order(self, tracker):
+        """测试活跃订单的预计日期"""
+        created_at = datetime.now() - timedelta(days=1)
+        mock_order = MagicMock()
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = created_at
+        
+        result = tracker._estimate_due_date(mock_order)
+        assert result is not None
+        expected_due = created_at + timedelta(days=7)
+        assert abs((result - expected_due).total_seconds()) < 1
+    
+    def test_tracking_event_creation(self):
+        """测试追踪事件的创建"""
+        event = TrackingEvent(
+            order_id="order_789",
+            event_type="status_change",
+            old_status="pending",
+            new_status="active",
+            notes="Status updated"
+        )
+        
+        assert event.order_id == "order_789"
+        assert event.event_type == "status_change"
+        assert event.old_status == "pending"
+        assert event.new_status == "active"
+        assert event.notes == "Status updated"
+        assert isinstance(event.timestamp, datetime)
+    
+    def test_tracking_event_minimal(self):
+        """测试最小化追踪事件"""
+        event = TrackingEvent(
+            order_id="order_789",
+            event_type="alert",
+            new_status="late"
+        )
+        
+        assert event.order_id == "order_789"
+        assert event.event_type == "alert"
+        assert event.old_status is None
+        assert event.new_status == "late"
+        assert event.notes is None
+        assert event.metadata == {}
+    
+    def test_tracked_order_creation(self):
+        """测试追踪订单的创建"""
+        order = FiverrOrder(
+            id="order_999",
+            buyer_username="test",
+            seller_username="seller",
+            title="Test",
+            description="Test order",
+            price=100.0,
+            status="active",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        
+        tracked = TrackedOrder(
+            order=order,
+            last_checked=datetime.now(),
+            due_date=datetime.now() + timedelta(days=7)
+        )
+        
+        assert tracked.order.id == "order_999"
+        assert tracked.reminder_sent is False
+        assert tracked.late_notification_sent is False
+        assert len(tracked.status_history) == 0
+    
+    def test_order_status_enum_values(self):
+        """测试订单状态枚举值"""
+        assert OrderStatus.PENDING.value == "pending"
+        assert OrderStatus.ACTIVE.value == "active"
+        assert OrderStatus.LATE.value == "late"
+        assert OrderStatus.DELIVERED.value == "delivered"
+        assert OrderStatus.COMPLETED.value == "completed"
+        assert OrderStatus.CANCELLED.value == "cancelled"
+        assert OrderStatus.DISPUTED.value == "disputed"
+
+
+class TestOrderTrackerAlerts:
+    """OrderTracker 警报测试"""
+    
+    @pytest.fixture
+    def config(self):
+        return OrderTrackerConfig(
+            check_interval_seconds=60,
+            late_threshold_hours=12,
+            reminder_before_due_hours=6,
+            enable_notifications=True,
+            track_status_changes=True
+        )
+    
+    @pytest.fixture
+    def mock_fiverr_client(self):
+        return AsyncMock()
+    
+    @pytest.fixture
+    def tracker(self, mock_fiverr_client, config):
+        return OrderTracker(
+            fiverr_client=mock_fiverr_client,
+            config=config
+        )
+    
+    @pytest.mark.asyncio
+    async def test_check_order_alerts_no_due_date(self, tracker):
+        """测试没有预计日期的订单警报"""
+        mock_order = MagicMock()
+        mock_order.id = "order_no_due"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now(),
+            due_date=None
+        )
+        
+        # 不应该抛出异常
+        await tracker._check_order_alerts(tracked)
+    
+    @pytest.mark.asyncio
+    async def test_check_order_alerts_not_due_yet(self, tracker):
+        """测试还未到期的订单"""
+        mock_order = MagicMock()
+        mock_order.id = "order_future"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        due_date = datetime.now() + timedelta(days=2)
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now(),
+            due_date=due_date,
+            reminder_sent=False,
+            late_notification_sent=False
+        )
+        
+        await tracker._check_order_alerts(tracked)
+        
+        # 不应该发送任何警报
+        assert tracked.reminder_sent is False
+        assert tracked.late_notification_sent is False
+    
+    @pytest.mark.asyncio
+    async def test_handle_late_order(self, tracker):
+        """测试处理逾期订单"""
+        mock_order = MagicMock()
+        mock_order.id = "order_late"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.buyer_username = "test_buyer"
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        due_date = datetime.now() - timedelta(days=1)
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now(),
+            due_date=due_date,
+            late_notification_sent=False
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.event_bus') as mock_bus, \
+             patch('agentforge.fiverr.order_tracker.notification_service') as mock_notify:
+            
+            await tracker._handle_late_order(tracked)
+            
+            assert tracked.late_notification_sent is True
+            assert len(tracked.status_history) == 1
+            assert tracked.status_history[0].event_type == "late_alert"
+            
+            mock_bus.publish.assert_called_once()
+            mock_notify.send_notification.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_handle_due_soon(self, tracker):
+        """测试处理即将到期订单"""
+        mock_order = MagicMock()
+        mock_order.id = "order_soon"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        due_date = datetime.now() + timedelta(hours=3)
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now(),
+            due_date=due_date,
+            reminder_sent=False
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.notification_service') as mock_notify:
+            
+            await tracker._handle_due_soon(tracked)
+            
+            assert tracked.reminder_sent is True
+            assert len(tracked.status_history) == 1
+            assert tracked.status_history[0].event_type == "due_soon_reminder"
+            
+            mock_notify.send_notification.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_check_order_alerts_late(self, tracker):
+        """测试逾期订单警报"""
+        mock_order = MagicMock()
+        mock_order.id = "order_overdue"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.buyer_username = "test_buyer"
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        due_date = datetime.now() - timedelta(hours=1)
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now(),
+            due_date=due_date,
+            late_notification_sent=False
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.event_bus'), \
+             patch('agentforge.fiverr.order_tracker.notification_service'):
+            
+            await tracker._check_order_alerts(tracked)
+            
+            assert tracked.late_notification_sent is True
+    
+    @pytest.mark.asyncio
+    async def test_check_order_alerts_due_soon(self, tracker):
+        """测试即将到期订单警报"""
+        mock_order = MagicMock()
+        mock_order.id = "order_almost_due"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        due_date = datetime.now() + timedelta(hours=4)
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now(),
+            due_date=due_date,
+            reminder_sent=False
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.notification_service'):
+            
+            await tracker._check_order_alerts(tracked)
+            
+            assert tracked.reminder_sent is True
+
+
+class TestOrderTrackerStatusChange:
+    """OrderTracker 状态变更测试"""
+    
+    @pytest.fixture
+    def config(self):
+        return OrderTrackerConfig(
+            enable_notifications=True,
+            track_status_changes=True
+        )
+    
+    @pytest.fixture
+    def mock_fiverr_client(self):
+        return AsyncMock()
+    
+    @pytest.fixture
+    def tracker(self, mock_fiverr_client, config):
+        return OrderTracker(
+            fiverr_client=mock_fiverr_client,
+            config=config
+        )
+    
+    @pytest.mark.asyncio
+    async def test_handle_status_change(self, tracker):
+        """测试状态变更处理"""
+        mock_order = MagicMock()
+        mock_order.id = "order_status"
+        mock_order.buyer_username = "test_buyer"
+        mock_order.price = 100.0
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now()
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.event_bus') as mock_bus, \
+             patch('agentforge.fiverr.order_tracker.notification_service') as mock_notify:
+            
+            await tracker._handle_status_change(tracked, "pending", "active")
+            
+            assert len(tracked.status_history) == 1
+            event = tracked.status_history[0]
+            assert event.old_status == "pending"
+            assert event.new_status == "active"
+            
+            mock_bus.publish.assert_called_once()
+            mock_notify.send_status_notification.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_handle_status_change_no_notifications(self, tracker):
+        """测试不发送通知的状态变更"""
+        tracker.config.enable_notifications = False
+        
+        mock_order = MagicMock()
+        mock_order.id = "order_no_notify"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now()
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.event_bus') as mock_bus:
+            
+            await tracker._handle_status_change(tracked, "pending", "delivered")
+            
+            assert len(tracked.status_history) == 1
+            mock_bus.publish.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_handle_status_change_no_tracking(self, tracker):
+        """测试不追踪状态变更"""
+        tracker.config.track_status_changes = False
+        
+        mock_order = MagicMock()
+        mock_order.id = "order_no_track"
+        mock_order.status = OrderStatus.ACTIVE
+        mock_order.created_at = datetime.now()
+        mock_order.updated_at = datetime.now()
+        
+        tracked = TrackedOrder(
+            order=mock_order,
+            last_checked=datetime.now()
+        )
+        
+        with patch('agentforge.fiverr.order_tracker.event_bus') as mock_bus, \
+             patch('agentforge.fiverr.order_tracker.notification_service') as mock_notify:
+            
+            await tracker._handle_status_change(tracked, "active", "completed")
+            
+            assert len(tracked.status_history) == 1
+            mock_bus.publish.assert_not_called()
+            mock_notify.send_notification.assert_called_once()

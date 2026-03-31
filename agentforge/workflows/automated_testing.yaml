@@ -1,0 +1,65 @@
+name: 自动化测试流程
+version: "1.0.0"
+description: 代码提交后自动运行测试
+trigger:
+  type: event
+  event_type: code_pushed
+  conditions: []
+workflow:
+  - name: 拉取最新代码
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/git/pull"
+    timeout: 60
+    retry: 3
+    on_error: abort
+  - name: 安装依赖
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/ci/install_deps"
+    timeout: 120
+    retry: 2
+    on_error: abort
+  - name: 运行单元测试
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/ci/run_tests"
+      body:
+        test_type: unit
+    timeout: 300
+    retry: 1
+    on_error: continue
+  - name: 运行集成测试
+    type: action
+    action_type: http_request
+    params:
+      method: POST
+      url: "http://localhost:8000/api/ci/run_tests"
+      body:
+        test_type: integration
+    timeout: 600
+    retry: 1
+    on_error: continue
+  - name: 发送测试报告
+    type: action
+    action_type: send_message
+    params:
+      to: "dev_team"
+      subject: "自动化测试报告"
+      content: "测试完成，请查看报告：{{test_report_url}}"
+    timeout: 30
+    retry: 3
+    on_error: continue
+variables: {}
+enabled: true
+tags:
+  - ci-cd
+  - testing
+  - automation
+author: System
