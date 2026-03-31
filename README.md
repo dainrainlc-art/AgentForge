@@ -1,221 +1,219 @@
 # AgentForge
 
-Fiverr运营自动化智能助理系统 - 基于GLM-5和N8N的AI驱动自动化平台。
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/node-18%2B-green.svg" alt="Node.js">
+  <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
+</p>
 
-## 六层架构设计
+<p align="center">
+  <b>AI驱动的Fiverr运营自动化助理系统</b><br>
+  <i>智能、高效、可扩展的自动化运营解决方案</i>
+</p>
 
-AgentForge 采用六层架构设计，实现清晰的关注点分离和高度可扩展性：
+---
 
-### 架构层次
+## 🌟 项目简介
 
-| 层级 | 目录 | 职责 |
-|------|------|------|
-| 基础设施层 | `infrastructure/` | Docker、K8s、部署脚本 |
-| 数据存储层 | `data/` | 数据库迁移、初始数据、备份 |
-| AI能力层 | `agentforge/` | 核心AI模块、技能、记忆、LLM集成 |
-| 业务逻辑层 | `workflows/` | 业务引擎、n8n工作流 |
-| 集成接口层 | `integrations/` | REST API、外部服务、Webhooks |
-| 用户交互层 | `frontend/` | React前端、CLI工具 |
+AgentForge 是一个基于 AI 的 Fiverr 运营自动化平台，旨在帮助自由职业者和企业自动化管理 Fiverr 订单、客户沟通、社交媒体营销等运营任务。系统采用先进的六层架构设计，支持自进化、多 Agent 协同工作，提供完整的自动化解决方案。
 
-## 目录结构
+## 🚀 核心特性
+
+### 1. AI 智能助手
+- 🤖 **多模型支持**: GLM-5, Kimi-K2.5, DeepSeek, MiniMax
+- 🧠 **自进化系统**: 自动优化提示词和工作流
+- 💬 **智能对话**: 自然语言处理，上下文理解
+- 📝 **内容生成**: 自动文案、邮件、回复生成
+
+### 2. Fiverr 自动化
+- 📦 **订单管理**: 自动监控、报价、交付
+- 💬 **客户沟通**: 智能回复、消息模板
+- 📊 **数据分析**: 订单统计、收入分析
+- 🎯 **优化建议**: 自动优化 Gig 和 Profile
+
+### 3. 社交媒体营销
+- 📱 **多平台支持**: LinkedIn, Twitter, Instagram, Facebook
+- 📝 **内容发布**: 自动排版、定时发布
+- 📈 **数据分析**: 粉丝增长、互动分析
+- 🔄 **内容同步**: 一键多平台同步
+
+### 4. 知识管理
+- 📚 **Obsidian 同步**: 双向同步笔记
+- 🗂️ **Notion 集成**: 数据库自动同步
+- 🔍 **向量搜索**: 语义检索、知识图谱
+- 📄 **文档处理**: 自动分类、标签管理
+
+### 5. 工作流引擎
+- ⚡ **N8N 集成**: 可视化工作流设计
+- 🔧 **技能系统**: 模块化技能管理
+- 🔌 **插件扩展**: 丰富的插件生态
+- 🔄 **自动化**: 定时任务、事件触发
+
+## 🏗️ 技术架构
 
 ```
-AgentForge/
-├── infrastructure/          # 基础设施层
-│   ├── docker/             # Docker配置
-│   ├── scripts/            # 部署脚本
-│   └── k8s/                # Kubernetes配置
-├── data/                   # 数据存储层
-│   ├── migrations/         # 数据库迁移
-│   ├── seeds/              # 初始数据
-│   └── backups/            # 数据备份
-├── agentforge/             # AI能力层（核心）
-│   ├── core/               # 核心模块（自进化、记忆系统）
-│   ├── skills/             # Agent技能模块
-│   ├── memory/             # 长期记忆存储
-│   ├── llm/                # LLM集成（百度千帆）
-│   └── prompts/            # Prompt模板
-├── workflows/              # 业务逻辑层
-│   ├── engines/            # 业务引擎
-│   │   ├── fiverr/        # Fiverr运营引擎
-│   │   ├── social/        # 社交媒体引擎
-│   │   ├── knowledge/     # 知识管理引擎
-│   │   └── communication/ # 客户沟通引擎
-│   └── n8n/                # n8n工作流配置
-├── integrations/           # 集成接口层
-│   ├── api/                # REST API
-│   ├── external/           # 外部服务集成
-│   │   ├── fiverr/        # Fiverr API
-│   │   ├── notion/        # Notion API
-│   │   ├── obsidian/      # Obsidian集成
-│   │   └── social/        # 社交媒体API
-│   └── webhooks/           # Webhook处理
-├── frontend/               # 用户交互层
-│   ├── src/
-│   │   ├── components/    # UI组件
-│   │   ├── pages/         # 页面
-│   │   ├── hooks/         # React Hooks
-│   │   └── utils/         # 工具函数
-│   └── public/
-├── cli/                    # 命令行工具
-├── tests/                  # 测试
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── .backup/                # 备份目录
-├── .trae/                  # Trae配置
-├── docs/                   # 项目文档
-├── docker/                 # Docker配置（遗留）
-├── n8n-workflows/          # n8n工作流定义
-├── .env                    # 环境配置
-├── requirements.txt        # Python依赖
-└── README.md
+┌─────────────────────────────────────────────────────────────┐
+│                     用户交互层 (UI Layer)                    │
+│         React + TypeScript + Tailwind CSS + Vite            │
+├─────────────────────────────────────────────────────────────┤
+│                     集成接口层 (API Layer)                   │
+│              FastAPI + WebSocket + RESTful API              │
+├─────────────────────────────────────────────────────────────┤
+│                     业务逻辑层 (Business Layer)              │
+│         Fiverr管理 | 社交媒体 | 知识管理 | 工作流           │
+├─────────────────────────────────────────────────────────────┤
+│                     AI 能力层 (AI Layer)                     │
+│     GLM-5 | Kimi-K2.5 | DeepSeek | MiniMax | 自进化        │
+├─────────────────────────────────────────────────────────────┤
+│                     数据存储层 (Data Layer)                  │
+│       PostgreSQL | Redis | Qdrant (向量数据库)              │
+├─────────────────────────────────────────────────────────────┤
+│                     基础设施层 (Infra Layer)                 │
+│     Docker | Docker Compose | Nginx | 监控系统              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 各层职责说明
+## 📦 快速开始
 
-### 1. 基础设施层 (infrastructure/)
-- Docker容器配置
-- Kubernetes部署配置
-- CI/CD脚本
-- 环境初始化脚本
-
-### 2. 数据存储层 (data/)
-- 数据库迁移脚本
-- 初始数据种子
-- 数据备份与恢复
-- 数据模型定义
-
-### 3. AI能力层 (agentforge/)
-- **core/**: 自进化引擎、记忆系统核心
-- **skills/**: 可插拔的Agent技能模块
-- **memory/**: 长期记忆存储与管理
-- **llm/**: 百度千帆GLM-5集成
-- **prompts/**: Prompt模板管理
-
-### 4. 业务逻辑层 (workflows/)
-- **engines/**: 各业务领域引擎
-  - Fiverr运营自动化
-  - 社交媒体管理
-  - 知识库管理
-  - 客户沟通自动化
-- **n8n/**: n8n工作流配置
-
-### 5. 集成接口层 (integrations/)
-- **api/**: REST API端点
-- **external/**: 外部服务集成适配器
-- **webhooks/**: Webhook接收与处理
-
-### 6. 用户交互层 (frontend/)
-- React前端应用
-- CLI命令行工具
-- 用户界面组件
-
-## 快速开始
-
-### 前置要求
-
+### 环境要求
 - Python 3.12+
-- Docker 和 Docker Compose
-- 百度千帆API Key
+- Node.js 18+
+- Docker & Docker Compose
 
-### 1. 环境配置
-
-确保已配置好 `.env` 文件中的百度千帆API Key：
-```env
-QIANFAN_API_KEY=your_api_key_here
-```
-
-### 2. 启动基础服务（Docker）
+### 安装步骤
 
 ```bash
+# 1. 克隆项目
+git clone https://github.com/dainrainlc/agentforge.git
+cd agentforge
+
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，配置 API 密钥
+
+# 3. 启动服务
 ./start-services.sh
+
+# 4. 访问系统
+# 前端: http://localhost
+# API: http://localhost:8000
+# API文档: http://localhost:8000/docs
 ```
 
-### 3. 创建虚拟环境并安装依赖
+### Docker 部署
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 启动所有服务
+docker-compose -f docker-compose.prod.yml up -d
+
+# 查看状态
+docker-compose -f docker-compose.prod.yml ps
+
+# 查看日志
+docker-compose -f docker-compose.prod.yml logs -f
 ```
 
-### 4. 启动AgentForge API
+## 📚 文档
+
+- [快速开始指南](docs/QUICK_START_GUIDE.md)
+- [部署指南](docs/DEPLOYMENT.md)
+- [API 文档](docs/api/README.md)
+- [架构设计](docs/architecture/overview.md)
+- [用户手册](docs/USER_GUIDE.md)
+
+## 🧪 测试
 
 ```bash
-./run.sh
+# 运行单元测试
+pytest tests/unit/ -v
+
+# 运行集成测试
+pytest tests/integration/ -v
+
+# 运行性能测试
+python tests/performance/benchmark.py
+
+# 运行安全扫描
+bandit -r agentforge/ -f json
+safety check -r requirements.txt
 ```
 
-## 服务访问
+## 🔒 安全性
 
-| 服务 | 地址 |
-|------|------|
-| AgentForge API | http://localhost:8000 |
-| API 文档 (Swagger) | http://localhost:8000/docs |
-| N8N 工作流 | http://localhost:5678 |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
-| Qdrant | http://localhost:6333 |
+- ✅ Bandit 代码安全扫描
+- ✅ Safety 依赖漏洞扫描
+- ✅ JWT 认证授权
+- ✅ 速率限制保护
+- ✅ 输入验证和清理
+- ✅ HTTPS 支持
 
-## 核心功能
+## 🚀 CI/CD
 
-### 1. 意图识别
-自动识别用户意图，包括：
-- Fiverr订单管理
-- 内容创作
-- 社交媒体营销
-- 知识管理
-- 客户沟通
+项目集成了完整的 CI/CD 管道：
 
-### 2. GLM-5集成
-- 基于百度千帆GLM-5核心模型
-- 支持多语言处理
-- 智能内容创作
-- 专业客户沟通
+- 🔍 代码质量检查 (Ruff, Black, MyPy)
+- 🧪 自动化测试 (单元测试、集成测试)
+- 🛡️ 安全扫描 (Bandit, Safety, Trivy)
+- 🐳 Docker 镜像构建
+- 📚 文档自动生成
+- 🚀 自动发布
 
-### 3. 多数据库支持
-- **PostgreSQL**: 结构化业务数据
-- **Redis**: 缓存与会话管理
-- **Qdrant**: 向量数据库与语义搜索
+## 🛠️ 技术栈
 
-### 4. N8N工作流
-- 自动化工作流编排
-- 事件驱动架构
-- 定时任务调度
+### 后端
+- **框架**: FastAPI
+- **数据库**: PostgreSQL, Redis, Qdrant
+- **AI**: OpenAI, Anthropic, 百度千帆
+- **任务队列**: Celery
+- **测试**: pytest
 
-## 开发指南
+### 前端
+- **框架**: React 18
+- **语言**: TypeScript
+- **样式**: Tailwind CSS
+- **构建**: Vite
+- **状态**: React Hooks
 
-### 代码质量检查
-```bash
-black agentforge/
-ruff agentforge/
-mypy agentforge/
-```
+### 运维
+- **容器**: Docker, Docker Compose
+- **监控**: Prometheus, Grafana, Loki
+- **网关**: Nginx
+- **工作流**: N8N
 
-### 运行测试
-```bash
-pytest tests/
-```
+## 📈 性能指标
 
-## 配置说明
+- API 响应时间: < 200ms
+- 数据库查询: < 100ms
+- 缓存命中率: > 90%
+- 并发支持: 1000+ 用户
 
-### 环境变量 (.env)
+## 🤝 贡献指南
 
-| 变量 | 说明 | 必填 |
-|------|------|------|
-| QIANFAN_API_KEY | 百度千帆API Key | ✅ |
-| POSTGRES_PASSWORD | PostgreSQL密码 | ✅ |
-| N8N_BASIC_AUTH_PASSWORD | N8N密码 | ✅ |
-| SECRET_KEY | 应用密钥 | ✅ |
-| ENCRYPTION_KEY | 加密密钥 | ✅ |
+欢迎提交 Issue 和 Pull Request！
 
-## 安全说明
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
 
-- 所有敏感数据存储在本地
-- API密钥加密存储
-- 最小权限原则
-- 完整的操作审计日志
+## 📄 许可证
 
-## 许可证
+本项目基于 [MIT](LICENSE) 许可证开源。
 
-MIT License
+## 🙏 致谢
+
+- [FastAPI](https://fastapi.tiangolo.com/) - 高性能 Web 框架
+- [React](https://react.dev/) - 前端框架
+- [N8N](https://n8n.io/) - 工作流自动化
+- [百度千帆](https://cloud.baidu.com/) - AI 模型服务
+
+---
+
+<p align="center">
+  <b>Made with ❤️ by AgentForge Team</b><br>
+  <a href="https://github.com/dainrainlc/agentforge">GitHub</a> •
+  <a href="docs/">Documentation</a> •
+  <a href="https://github.com/dainrainlc/agentforge/issues">Issues</a>
+</p>
